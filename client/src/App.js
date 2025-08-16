@@ -1,0 +1,70 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+
+// Components
+import Layout from './components/Layout/Layout';
+import Login from './pages/Login/Login';
+import Dashboard from './pages/Dashboard/Dashboard';
+import POS from './pages/POS/POS';
+import Products from './pages/Products/Products';
+import Customers from './pages/Customers/Customers';
+import Sales from './pages/Sales/Sales';
+import Inventory from './pages/Inventory/Inventory';
+import Reports from './pages/Reports/Reports';
+import Settings from './pages/Settings/Settings';
+
+// Context
+import { AuthProvider } from './contexts/AuthContext';
+
+// Create theme
+const theme = createTheme({
+  palette: {
+    mode: 'light',
+    primary: {
+      main: '#1976d2',
+    },
+    secondary: {
+      main: '#dc004e',
+    },
+    background: {
+      default: '#f5f5f5',
+    },
+  },
+  typography: {
+    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+  },
+});
+
+function App() {
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <LocalizationProvider dateAdapter={AdapterDayjs}>
+        <AuthProvider>
+          <Router>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/" element={<Layout />}>
+                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="pos" element={<POS />} />
+                <Route path="products" element={<Products />} />
+                <Route path="customers" element={<Customers />} />
+                <Route path="sales" element={<Sales />} />
+                <Route path="inventory" element={<Inventory />} />
+                <Route path="reports" element={<Reports />} />
+                <Route path="settings" element={<Settings />} />
+              </Route>
+            </Routes>
+          </Router>
+        </AuthProvider>
+      </LocalizationProvider>
+    </ThemeProvider>
+  );
+}
+
+export default App;
