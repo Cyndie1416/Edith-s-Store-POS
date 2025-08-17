@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Grid,
@@ -28,6 +29,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 
 const Dashboard = () => {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalSales: 0,
     totalProducts: 0,
@@ -211,25 +213,41 @@ const Dashboard = () => {
               {t('quickActions')}
             </Typography>
             <List>
-              <ListItem button>
+              <ListItem 
+                button 
+                onClick={() => navigate('/pos')}
+                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'action.hover' } }}
+              >
                 <ListItemIcon>
                   <ShoppingCart color="primary" />
                 </ListItemIcon>
                 <ListItemText primary={t('newSale')} />
               </ListItem>
-              <ListItem button>
+              <ListItem 
+                button 
+                onClick={() => navigate('/products')}
+                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'action.hover' } }}
+              >
                 <ListItemIcon>
                   <Inventory color="primary" />
                 </ListItemIcon>
                 <ListItemText primary={t('addProduct')} />
               </ListItem>
-              <ListItem button>
+              <ListItem 
+                button 
+                onClick={() => navigate('/customers')}
+                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'action.hover' } }}
+              >
                 <ListItemIcon>
                   <People color="primary" />
                 </ListItemIcon>
                 <ListItemText primary={t('addCustomer')} />
               </ListItem>
-              <ListItem button>
+              <ListItem 
+                button 
+                onClick={() => navigate('/reports')}
+                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'action.hover' } }}
+              >
                 <ListItemIcon>
                   <Assessment color="primary" />
                 </ListItemIcon>
