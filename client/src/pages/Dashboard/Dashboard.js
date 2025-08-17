@@ -24,8 +24,10 @@ import {
   Assessment
 } from '@mui/icons-material';
 import axios from 'axios';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const Dashboard = () => {
+  const { t } = useLanguage();
   const [stats, setStats] = useState({
     totalSales: 0,
     totalProducts: 0,
@@ -111,7 +113,7 @@ const Dashboard = () => {
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <Typography>Loading dashboard...</Typography>
+        <Typography>{t('loading')}</Typography>
       </Box>
     );
   }
@@ -119,7 +121,7 @@ const Dashboard = () => {
   return (
     <Box>
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', mb: 3 }}>
-        Dashboard
+        {t('dashboard')}
       </Typography>
 
       {error && (
@@ -132,7 +134,7 @@ const Dashboard = () => {
         {/* Stats Cards */}
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Today's Sales"
+            title={t('todaysSales')}
             value={stats.totalSales}
             icon={<ShoppingCart />}
             color="primary"
@@ -140,7 +142,7 @@ const Dashboard = () => {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Today's Revenue"
+            title={t('todaysRevenue')}
             value={stats.totalRevenue}
             icon={<AttachMoney />}
             color="success"
@@ -148,7 +150,7 @@ const Dashboard = () => {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Total Products"
+            title={t('totalProducts')}
             value={stats.totalProducts}
             icon={<Inventory />}
             color="info"
@@ -156,7 +158,7 @@ const Dashboard = () => {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Low Stock Items"
+            title={t('lowStockItems')}
             value={stats.lowStockCount}
             icon={<Warning />}
             color="warning"
@@ -167,7 +169,7 @@ const Dashboard = () => {
         <Grid item xs={12} md={8}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
-              Recent Sales
+              {t('recentSales')}
             </Typography>
             <List>
               {recentSales.length > 0 ? (
@@ -193,8 +195,8 @@ const Dashboard = () => {
               ) : (
                 <ListItem>
                   <ListItemText
-                    primary="No recent sales"
-                    secondary="Sales will appear here once transactions are made"
+                    primary={t('noRecentSales')}
+                    secondary={t('salesWillAppearHere')}
                   />
                 </ListItem>
               )}
@@ -206,32 +208,32 @@ const Dashboard = () => {
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
-              Quick Actions
+              {t('quickActions')}
             </Typography>
             <List>
               <ListItem button>
                 <ListItemIcon>
                   <ShoppingCart color="primary" />
                 </ListItemIcon>
-                <ListItemText primary="New Sale" />
+                <ListItemText primary={t('newSale')} />
               </ListItem>
               <ListItem button>
                 <ListItemIcon>
                   <Inventory color="primary" />
                 </ListItemIcon>
-                <ListItemText primary="Add Product" />
+                <ListItemText primary={t('addProduct')} />
               </ListItem>
               <ListItem button>
                 <ListItemIcon>
                   <People color="primary" />
                 </ListItemIcon>
-                <ListItemText primary="Add Customer" />
+                <ListItemText primary={t('addCustomer')} />
               </ListItem>
               <ListItem button>
                 <ListItemIcon>
                   <Assessment color="primary" />
                 </ListItemIcon>
-                <ListItemText primary="View Reports" />
+                <ListItemText primary={t('viewReports')} />
               </ListItem>
             </List>
           </Paper>

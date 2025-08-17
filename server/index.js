@@ -12,6 +12,7 @@ const customersRouter = require('./routes/customers');
 const inventoryRouter = require('./routes/inventory');
 const reportsRouter = require('./routes/reports');
 const authRouter = require('./routes/auth');
+const receiptsRouter = require('./routes/receipts');
 
 // Import database initialization
 const { initializeDatabase } = require('./models/database');
@@ -64,6 +65,7 @@ app.use('/api/customers', customersRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/receipts', receiptsRouter);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

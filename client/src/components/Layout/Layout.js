@@ -30,29 +30,35 @@ import {
   Settings as SettingsIcon,
   AccountCircle,
   Notifications,
-  Logout
+  Logout,
+  Brightness4,
+  Brightness7
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const drawerWidth = 240;
-
-const menuItems = [
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-  { text: 'POS Sales', icon: <POSIcon />, path: '/pos' },
-  { text: 'Products', icon: <InventoryIcon />, path: '/products' },
-  { text: 'Customers', icon: <PeopleIcon />, path: '/customers' },
-  { text: 'Sales History', icon: <SalesIcon />, path: '/sales' },
-  { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory' },
-  { text: 'Reports', icon: <ReportsIcon />, path: '/reports' },
-  { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
-];
 
 const Layout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const { user, logout } = useAuth();
+  const { mode, toggleMode } = useTheme();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const menuItems = [
+    { text: t('dashboard'), icon: <DashboardIcon />, path: '/dashboard' },
+    { text: t('posSales'), icon: <POSIcon />, path: '/pos' },
+    { text: t('products'), icon: <InventoryIcon />, path: '/products' },
+    { text: t('customers'), icon: <PeopleIcon />, path: '/customers' },
+    { text: t('salesHistory'), icon: <SalesIcon />, path: '/sales' },
+    { text: t('inventory'), icon: <InventoryIcon />, path: '/inventory' },
+    { text: t('reports'), icon: <ReportsIcon />, path: '/reports' },
+    { text: t('settings'), icon: <SettingsIcon />, path: '/settings' },
+  ];
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -119,7 +125,7 @@ const Layout = () => {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            {menuItems.find(item => item.path === location.pathname)?.text || 'Dashboard'}
+            {menuItems.find(item => item.path === location.pathname)?.text || t('dashboard')}
           </Typography>
           
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -129,6 +135,9 @@ const Layout = () => {
               color="secondary" 
               variant="outlined"
             />
+            <IconButton color="inherit" onClick={toggleMode}>
+              {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+            </IconButton>
             <IconButton color="inherit">
               <Badge badgeContent={4} color="error">
                 <Notifications />
@@ -198,13 +207,13 @@ const Layout = () => {
           <ListItemIcon>
             <SettingsIcon fontSize="small" />
           </ListItemIcon>
-          Settings
+          {t('settings')}
         </MenuItem>
         <MenuItem onClick={handleLogout}>
           <ListItemIcon>
             <Logout fontSize="small" />
           </ListItemIcon>
-          Logout
+          {t('logout')}
         </MenuItem>
       </Menu>
     </Box>

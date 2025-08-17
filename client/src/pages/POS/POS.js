@@ -43,8 +43,10 @@ import {
   AccountBalance
 } from '@mui/icons-material';
 import axios from 'axios';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const POS = () => {
+  const { t } = useLanguage();
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -245,7 +247,7 @@ const POS = () => {
   return (
     <Box sx={{ p: 2 }}>
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', mb: 3 }}>
-        Point of Sale
+        {t('pointOfSale')}
       </Typography>
 
       <Grid container spacing={3}>
@@ -253,14 +255,14 @@ const POS = () => {
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 2, height: '70vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <Typography variant="h6" gutterBottom>
-              Products
+              {t('products')}
             </Typography>
             
             {/* Search Bar */}
             <Box sx={{ mb: 2, display: 'flex', gap: 1 }}>
               <TextField
                 fullWidth
-                placeholder="Search products by name or barcode..."
+                placeholder={t('searchProducts')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 InputProps={{
@@ -271,7 +273,7 @@ const POS = () => {
                   ),
                 }}
               />
-              <Tooltip title="Scan Barcode">
+              <Tooltip title={t('scanBarcode')}>
                 <IconButton onClick={startScanner} color="primary">
                   <CameraAlt />
                 </IconButton>
@@ -314,21 +316,21 @@ const POS = () => {
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 2, height: '70vh', display: 'flex', flexDirection: 'column' }}>
             <Typography variant="h6" gutterBottom>
-              Shopping Cart
+              {t('shoppingCart')}
             </Typography>
 
             {/* Customer Selection */}
             <FormControl fullWidth sx={{ mb: 2 }}>
-              <InputLabel>Customer (Optional)</InputLabel>
+              <InputLabel>{t('customers')} ({t('cancel')})</InputLabel>
               <Select
                 value={selectedCustomer?.id || ''}
                 onChange={(e) => {
                   const customer = customers.find(c => c.id === e.target.value);
                   setSelectedCustomer(customer);
                 }}
-                label="Customer (Optional)"
+                label={`${t('customers')} (${t('cancel')})`}
               >
-                <MenuItem value="">No Customer</MenuItem>
+                <MenuItem value="">{t('noCustomer')}</MenuItem>
                 {customers.map((customer) => (
                   <MenuItem key={customer.id} value={customer.id}>
                     {customer.name} {customer.credit_balance > 0 && `(Credit: ₱${customer.credit_balance})`}
@@ -341,7 +343,7 @@ const POS = () => {
             <Box sx={{ flex: 1, overflow: 'auto', mb: 2 }}>
               {cart.length === 0 ? (
                 <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 4 }}>
-                  No items in cart
+                  {t('noItemsInCart')}
                 </Typography>
               ) : (
                 <List>
@@ -385,23 +387,23 @@ const POS = () => {
             </Typography>
             
             <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                variant="outlined"
-                onClick={clearCart}
-                startIcon={<Clear />}
-                fullWidth
-              >
-                Clear Cart
-              </Button>
-              <Button
-                variant="contained"
-                onClick={handlePayment}
-                startIcon={<Payment />}
-                fullWidth
-                disabled={cart.length === 0}
-              >
-                Process Payment
-              </Button>
+                              <Button
+                  variant="outlined"
+                  onClick={clearCart}
+                  startIcon={<Clear />}
+                  fullWidth
+                >
+                  {t('clearCart')}
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={handlePayment}
+                  startIcon={<Payment />}
+                  fullWidth
+                  disabled={cart.length === 0}
+                >
+                  {t('processPayment')}
+                </Button>
             </Box>
           </Paper>
         </Grid>

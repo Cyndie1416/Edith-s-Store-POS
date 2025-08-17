@@ -1,466 +1,479 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  Paper,
-  Typography,
-  Button,
   Grid,
   Card,
   CardContent,
-  Chip,
+  Typography,
+  Paper,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Button,
   Alert,
-  Snackbar,
-  TextField,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  IconButton,
-  Tooltip
+  CircularProgress,
+  Chip,
+  Divider,
+  TextField
 } from '@mui/material';
 import {
-  Download
-} from '@mui/icons-material';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip as ChartTooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   Legend,
-} from 'chart.js';
-import { Line, Bar, Pie } from 'react-chartjs-2';
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  AreaChart,
+  Area
+} from 'recharts';
+import {
+  TrendingUp,
+  ShoppingCart,
+  Inventory,
+  People,
+  AttachMoney,
+  Assessment,
+  FileDownload,
+  CalendarToday
+} from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import dayjs from 'dayjs';
 import axios from 'axios';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { 
+  exportSalesToExcel, 
+  exportInventoryToExcel, 
+  exportCustomersToExcel,
+  exportComprehensiveReport 
+} from '../../utils/excelExport';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Title,
-  ChartTooltip,
-  Legend
-);
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 const Reports = () => {
-  const [reports, setReports] = useState({
-    businessSummary: {},
-    salesData: [],
-    topProducts: [],
-    topCustomers: [],
-    inventorySummary: {},
-    creditSummary: {}
-  });
-  const [dateRange, setDateRange] = useState({
-    start: dayjs().subtract(30, 'day'),
-    end: dayjs()
-  });
-  const [loading, setLoading] = useState(false);
+  const { t } = useLanguage();
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [reportType, setReportType] = useState('sales');
+  const [dateRange, setDateRange] = useState('week');
+  const [startDate, setStartDate] = useState(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+  const [endDate, setEndDate] = useState(new Date());
+  
+  const [salesData, setSalesData] = useState([]);
+  const [inventoryData, setInventoryData] = useState([]);
+  const [customerData, setCustomerData] = useState([]);
+  const [chartData, setChartData] = useState([]);
 
   useEffect(() => {
-    fetchReports();
-  }, [dateRange]);
+    fetchReportData();
+  }, [reportType, dateRange, startDate, endDate]);
 
-  const fetchReports = async () => {
-    setLoading(true);
+  const fetchReportData = async () => {
     try {
-      const startDate = dateRange.start.format('YYYY-MM-DD');
-      const endDate = dateRange.end.format('YYYY-MM-DD');
+      setLoading(true);
+      setError('');
 
-      const [businessSummary, salesData, topProducts, topCustomers, inventorySummary, creditSummary] = await Promise.all([
-        axios.get(`/api/reports/business-summary?start_date=${startDate}&end_date=${endDate}`),
-        axios.get(`/api/reports/sales-data?start_date=${startDate}&end_date=${endDate}`),
-        axios.get('/api/reports/top-products'),
-        axios.get('/api/reports/top-customers'),
-        axios.get('/api/inventory/summary'),
-        axios.get('/api/customers/credit-summary')
-      ]);
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
 
-      setReports({
-        businessSummary: businessSummary.data,
-        salesData: salesData.data.sales || [],
-        topProducts: topProducts.data.products || [],
-        topCustomers: topCustomers.data.customers || [],
-        inventorySummary: inventorySummary.data,
-        creditSummary: creditSummary.data
-      });
+      switch (reportType) {
+        case 'sales':
+          const salesResponse = await axios.get(`/api/reports/sales?startDate=${startDateStr}&endDate=${endDateStr}`);
+          setSalesData(salesResponse.data.sales || []);
+          setChartData(processSalesData(salesResponse.data.sales || []));
+          break;
+        
+        case 'inventory':
+          const inventoryResponse = await axios.get('/api/reports/inventory');
+          setInventoryData(inventoryResponse.data.inventory || []);
+          setChartData(processInventoryData(inventoryResponse.data.inventory || []));
+          break;
+        
+        case 'customers':
+          const customersResponse = await axios.get('/api/reports/customers');
+          setCustomerData(customersResponse.data.customers || []);
+          setChartData(processCustomerData(customersResponse.data.customers || []));
+          break;
+        
+        case 'comprehensive':
+          const [sales, inventory, customers] = await Promise.all([
+            axios.get(`/api/reports/sales?startDate=${startDateStr}&endDate=${endDateStr}`),
+            axios.get('/api/reports/inventory'),
+            axios.get('/api/reports/customers')
+          ]);
+          setSalesData(sales.data.sales || []);
+          setInventoryData(inventory.data.inventory || []);
+          setCustomerData(customers.data.customers || []);
+          setChartData(processComprehensiveData(sales.data.sales || [], inventory.data.inventory || [], customers.data.customers || []));
+          break;
+      }
     } catch (error) {
-      setError('Failed to load reports');
+      console.error('Error fetching report data:', error);
+      setError('Failed to load report data');
     } finally {
       setLoading(false);
     }
   };
 
-  const exportToExcel = async (reportType) => {
-    try {
-      const startDate = dateRange.start.format('YYYY-MM-DD');
-      const endDate = dateRange.end.format('YYYY-MM-DD');
-      
-      const response = await axios.get(`/api/reports/export/${reportType}?start_date=${startDate}&end_date=${endDate}`, {
-        responseType: 'blob'
-      });
+  const processSalesData = (sales) => {
+    const dailySales = {};
+    sales.forEach(sale => {
+      const date = new Date(sale.created_at).toLocaleDateString();
+      if (!dailySales[date]) {
+        dailySales[date] = { date, sales: 0, revenue: 0 };
+      }
+      dailySales[date].sales += 1;
+      dailySales[date].revenue += parseFloat(sale.final_amount);
+    });
+    return Object.values(dailySales);
+  };
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${reportType}_${startDate}_${endDate}.xlsx`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      
-      setSuccess(`${reportType} report exported successfully!`);
-    } catch (error) {
-      setError('Failed to export report');
+  const processInventoryData = (inventory) => {
+    const categoryData = {};
+    inventory.forEach(item => {
+      const category = item.category_name || 'Uncategorized';
+      if (!categoryData[category]) {
+        categoryData[category] = { name: category, stock: 0, value: 0 };
+      }
+      categoryData[category].stock += item.stock_quantity;
+      categoryData[category].value += item.stock_quantity * item.price;
+    });
+    return Object.values(categoryData);
+  };
+
+  const processCustomerData = (customers) => {
+    return customers.map(customer => ({
+      name: customer.name,
+      balance: parseFloat(customer.current_balance),
+      limit: parseFloat(customer.credit_limit),
+      available: parseFloat(customer.credit_limit) - parseFloat(customer.current_balance)
+    }));
+  };
+
+  const processComprehensiveData = (sales, inventory, customers) => {
+    return {
+      sales: processSalesData(sales),
+      inventory: processInventoryData(inventory),
+      customers: processCustomerData(customers)
+    };
+  };
+
+  const handleExport = () => {
+    switch (reportType) {
+      case 'sales':
+        exportSalesToExcel(salesData, 'sales_report');
+        break;
+      case 'inventory':
+        exportInventoryToExcel(inventoryData, 'inventory_report');
+        break;
+      case 'customers':
+        exportCustomersToExcel(customerData, 'customers_report');
+        break;
+      case 'comprehensive':
+        exportComprehensiveReport({
+          sales: salesData,
+          inventory: inventoryData,
+          customers: customerData
+        }, 'comprehensive_report');
+        break;
     }
   };
 
-  // Chart data
-  const salesChartData = {
-    labels: reports.salesData.map(item => dayjs(item.date).format('MMM DD')),
-    datasets: [
-      {
-        label: 'Daily Sales',
-        data: reports.salesData.map(item => item.total_sales),
-        borderColor: 'rgb(75, 192, 192)',
-        backgroundColor: 'rgba(75, 192, 192, 0.5)',
-        tension: 0.1
-      }
-    ]
+  const getTotalRevenue = () => {
+    return salesData.reduce((total, sale) => total + parseFloat(sale.final_amount), 0);
   };
 
-  const topProductsChartData = {
-    labels: reports.topProducts.slice(0, 10).map(product => product.name),
-    datasets: [
-      {
-        label: 'Units Sold',
-        data: reports.topProducts.slice(0, 10).map(product => product.total_sold),
-        backgroundColor: [
-          '#FF6384',
-          '#36A2EB',
-          '#FFCE56',
-          '#4BC0C0',
-          '#9966FF',
-          '#FF9F40',
-          '#FF6384',
-          '#36A2EB',
-          '#FFCE56',
-          '#4BC0C0'
-        ]
-      }
-    ]
+  const getTotalSales = () => {
+    return salesData.length;
   };
 
-  const inventoryChartData = {
-    labels: ['In Stock', 'Low Stock', 'Out of Stock'],
-    datasets: [
-      {
-        data: [
-          reports.inventorySummary.in_stock || 0,
-          reports.inventorySummary.low_stock || 0,
-          reports.inventorySummary.out_of_stock || 0
-        ],
-        backgroundColor: [
-          '#4BC0C0',
-          '#FFCE56',
-          '#FF6384'
-        ]
-      }
-    ]
+  const getLowStockItems = () => {
+    return inventoryData.filter(item => item.stock_quantity <= item.min_stock_level).length;
   };
 
-  const chartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'top',
-      },
-      title: {
-        display: true,
-        text: 'Sales Trend'
-      }
-    }
+  const getTotalCustomers = () => {
+    return customerData.length;
   };
+
+  const renderSalesChart = () => (
+    <ResponsiveContainer width="100%" height={300}>
+      <BarChart data={chartData}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="date" />
+        <YAxis />
+        <Tooltip />
+        <Legend />
+        <Bar dataKey="sales" fill="#8884d8" name="Number of Sales" />
+        <Bar dataKey="revenue" fill="#82ca9d" name="Revenue (₱)" />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+
+  const renderInventoryChart = () => (
+    <ResponsiveContainer width="100%" height={300}>
+      <PieChart>
+        <Pie
+          data={chartData}
+          cx="50%"
+          cy="50%"
+          labelLine={false}
+          label={({ name, stock }) => `${name}: ${stock}`}
+          outerRadius={80}
+          fill="#8884d8"
+          dataKey="stock"
+        >
+          {chartData.map((entry, index) => (
+            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+          ))}
+        </Pie>
+        <Tooltip />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+
+  const renderCustomerChart = () => (
+    <ResponsiveContainer width="100%" height={300}>
+      <BarChart data={chartData}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="name" />
+        <YAxis />
+        <Tooltip />
+        <Legend />
+        <Bar dataKey="balance" fill="#ff7300" name="Current Balance" />
+        <Bar dataKey="available" fill="#00C49F" name="Available Credit" />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+
+  const renderComprehensiveCharts = () => (
+    <Grid container spacing={3}>
+      <Grid item xs={12} md={6}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>{t('dailySales')}</Typography>
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={chartData.sales}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Line type="monotone" dataKey="revenue" stroke="#8884d8" />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>{t('inventoryReport')}</Typography>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={chartData.inventory}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={60}
+                  fill="#8884d8"
+                  dataKey="stock"
+                >
+                  {chartData.inventory.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </Grid>
+    </Grid>
+  );
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box>
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', mb: 3 }}>
-        Reports & Analytics
+        {t('reports')}
       </Typography>
 
-      {/* Date Range Selector */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item>
-            <Typography variant="subtitle1">Date Range:</Typography>
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Report Controls */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Grid container spacing={3} alignItems="center">
+          <Grid item xs={12} md={3}>
+            <FormControl fullWidth>
+              <InputLabel>{t('reports')}</InputLabel>
+              <Select
+                value={reportType}
+                onChange={(e) => setReportType(e.target.value)}
+                label={t('reports')}
+              >
+                <MenuItem value="sales">{t('dailySales')}</MenuItem>
+                <MenuItem value="inventory">{t('inventoryReport')}</MenuItem>
+                <MenuItem value="customers">{t('creditReport')}</MenuItem>
+                <MenuItem value="comprehensive">Comprehensive Report</MenuItem>
+              </Select>
+            </FormControl>
           </Grid>
-          <Grid item>
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <DatePicker
-                label="Start Date"
-                value={dateRange.start}
-                onChange={(newValue) => setDateRange({ ...dateRange, start: newValue })}
-                renderInput={(params) => <TextField {...params} size="small" />}
-              />
-            </LocalizationProvider>
+          
+          <Grid item xs={12} md={3}>
+            <FormControl fullWidth>
+              <InputLabel>Date Range</InputLabel>
+              <Select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value)}
+                label="Date Range"
+              >
+                <MenuItem value="week">Last Week</MenuItem>
+                <MenuItem value="month">Last Month</MenuItem>
+                <MenuItem value="quarter">Last Quarter</MenuItem>
+                <MenuItem value="custom">Custom Range</MenuItem>
+              </Select>
+            </FormControl>
           </Grid>
-          <Grid item>
-            <Typography>to</Typography>
-          </Grid>
-          <Grid item>
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <DatePicker
-                label="End Date"
-                value={dateRange.end}
-                onChange={(newValue) => setDateRange({ ...dateRange, end: newValue })}
-                renderInput={(params) => <TextField {...params} size="small" />}
-              />
-            </LocalizationProvider>
-          </Grid>
-          <Grid item>
+          
+          {dateRange === 'custom' && (
+            <>
+              <Grid item xs={12} md={2}>
+                <DatePicker
+                  label="Start Date"
+                  value={startDate}
+                  onChange={setStartDate}
+                  renderInput={(params) => <TextField {...params} fullWidth />}
+                />
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <DatePicker
+                  label="End Date"
+                  value={endDate}
+                  onChange={setEndDate}
+                  renderInput={(params) => <TextField {...params} fullWidth />}
+                />
+              </Grid>
+            </>
+          )}
+          
+          <Grid item xs={12} md={2}>
             <Button
               variant="contained"
-              onClick={fetchReports}
-              disabled={loading}
+              startIcon={<FileDownload />}
+              onClick={handleExport}
+              fullWidth
             >
-              {loading ? 'Loading...' : 'Refresh'}
+              {t('exportToExcel')}
             </Button>
           </Grid>
         </Grid>
       </Paper>
 
-      {/* Business Summary Cards */}
+      {/* Summary Cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Total Sales
-              </Typography>
-              <Typography variant="h4" component="div">
-                ₱{reports.businessSummary.total_sales?.toFixed(2) || '0.00'}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                {reports.businessSummary.total_transactions || 0} transactions
-              </Typography>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography color="textSecondary" gutterBottom variant="h6">
+                    {t('todaysSales')}
+                  </Typography>
+                  <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+                    {getTotalSales()}
+                  </Typography>
+                </Box>
+                <ShoppingCart sx={{ fontSize: 40, color: 'primary.main' }} />
+              </Box>
             </CardContent>
           </Card>
         </Grid>
+        
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Gross Profit
-              </Typography>
-              <Typography variant="h4" component="div" color="success.main">
-                ₱{reports.businessSummary.gross_profit?.toFixed(2) || '0.00'}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                {reports.businessSummary.profit_margin?.toFixed(1) || 0}% margin
-              </Typography>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography color="textSecondary" gutterBottom variant="h6">
+                    {t('todaysRevenue')}
+                  </Typography>
+                  <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+                    ₱{getTotalRevenue().toLocaleString()}
+                  </Typography>
+                </Box>
+                <AttachMoney sx={{ fontSize: 40, color: 'success.main' }} />
+              </Box>
             </CardContent>
           </Card>
         </Grid>
+        
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Outstanding Credit
-              </Typography>
-              <Typography variant="h4" component="div" color="error.main">
-                ₱{reports.creditSummary.total_outstanding?.toFixed(2) || '0.00'}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                {reports.creditSummary.customers_with_credit || 0} customers
-              </Typography>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography color="textSecondary" gutterBottom variant="h6">
+                    {t('lowStockItems')}
+                  </Typography>
+                  <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+                    {getLowStockItems()}
+                  </Typography>
+                </Box>
+                <Inventory sx={{ fontSize: 40, color: 'warning.main' }} />
+              </Box>
             </CardContent>
           </Card>
         </Grid>
+        
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Inventory Value
-              </Typography>
-              <Typography variant="h4" component="div">
-                ₱{reports.inventorySummary.total_value?.toFixed(2) || '0.00'}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                {reports.inventorySummary.total_items || 0} items
-              </Typography>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography color="textSecondary" gutterBottom variant="h6">
+                    {t('totalProducts')}
+                  </Typography>
+                  <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+                    {getTotalCustomers()}
+                  </Typography>
+                </Box>
+                <People sx={{ fontSize: 40, color: 'info.main' }} />
+              </Box>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
       {/* Charts */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Sales Trend
-            </Typography>
-            <Line data={salesChartData} options={chartOptions} />
-          </Paper>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Inventory Status
-            </Typography>
-            <Pie data={inventoryChartData} options={{ responsive: true }} />
-          </Paper>
-        </Grid>
-      </Grid>
-
-      {/* Top Products and Customers */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">
-                Top Products
-              </Typography>
-              <Tooltip title="Export to Excel">
-                <IconButton onClick={() => exportToExcel('products')} color="primary">
-                  <Download />
-                </IconButton>
-              </Tooltip>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Product</TableCell>
-                    <TableCell align="right">Units Sold</TableCell>
-                    <TableCell align="right">Revenue</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {reports.topProducts.slice(0, 10).map((product) => (
-                    <TableRow key={product.id}>
-                      <TableCell>{product.name}</TableCell>
-                      <TableCell align="right">{product.total_sold}</TableCell>
-                      <TableCell align="right">₱{product.total_revenue.toFixed(2)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">
-                Top Customers
-              </Typography>
-              <Tooltip title="Export to Excel">
-                <IconButton onClick={() => exportToExcel('customers')} color="primary">
-                  <Download />
-                </IconButton>
-              </Tooltip>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Customer</TableCell>
-                    <TableCell align="right">Total Spent</TableCell>
-                    <TableCell align="right">Credit Balance</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {reports.topCustomers.slice(0, 10).map((customer) => (
-                    <TableRow key={customer.id}>
-                      <TableCell>{customer.name}</TableCell>
-                      <TableCell align="right">₱{customer.total_spent.toFixed(2)}</TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={`₱${customer.credit_balance.toFixed(2)}`}
-                          color={customer.credit_balance > 0 ? 'error' : 'success'}
-                          size="small"
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-      </Grid>
-
-      {/* Export Buttons */}
-      <Paper sx={{ p: 2 }}>
-        <Typography variant="h6" gutterBottom>
-          Export Reports
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+          {reportType === 'sales' && t('dailySales')}
+          {reportType === 'inventory' && t('inventoryReport')}
+          {reportType === 'customers' && t('creditReport')}
+          {reportType === 'comprehensive' && 'Comprehensive Analysis'}
         </Typography>
-        <Grid container spacing={2}>
-          <Grid item>
-            <Button
-              variant="outlined"
-              startIcon={<Download />}
-              onClick={() => exportToExcel('sales')}
-            >
-              Sales Report
-            </Button>
-          </Grid>
-          <Grid item>
-            <Button
-              variant="outlined"
-              startIcon={<Download />}
-              onClick={() => exportToExcel('inventory')}
-            >
-              Inventory Report
-            </Button>
-          </Grid>
-          <Grid item>
-            <Button
-              variant="outlined"
-              startIcon={<Download />}
-              onClick={() => exportToExcel('credit')}
-            >
-              Credit Report
-            </Button>
-          </Grid>
-          <Grid item>
-            <Button
-              variant="outlined"
-              startIcon={<Download />}
-              onClick={() => exportToExcel('profit-loss')}
-            >
-              Profit & Loss
-            </Button>
-          </Grid>
-        </Grid>
+        
+        {reportType === 'sales' && renderSalesChart()}
+        {reportType === 'inventory' && renderInventoryChart()}
+        {reportType === 'customers' && renderCustomerChart()}
+        {reportType === 'comprehensive' && renderComprehensiveCharts()}
       </Paper>
-
-      {/* Notifications */}
-      <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError('')}>
-        <Alert severity="error" onClose={() => setError('')}>
-          {error}
-        </Alert>
-      </Snackbar>
-      
-      <Snackbar open={!!success} autoHideDuration={6000} onClose={() => setSuccess('')}>
-        <Alert severity="success" onClose={() => setSuccess('')}>
-          {success}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 };
