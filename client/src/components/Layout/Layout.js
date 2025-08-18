@@ -52,10 +52,9 @@ const Layout = () => {
   const menuItems = [
     { text: t('dashboard'), icon: <DashboardIcon />, path: '/dashboard' },
     { text: t('posSales'), icon: <POSIcon />, path: '/pos' },
-    { text: t('products'), icon: <InventoryIcon />, path: '/products' },
+    { text: 'Products & Inventory', icon: <InventoryIcon />, path: '/products' },
     { text: t('customers'), icon: <PeopleIcon />, path: '/customers' },
     { text: t('salesHistory'), icon: <SalesIcon />, path: '/sales' },
-    { text: t('inventory'), icon: <InventoryIcon />, path: '/inventory' },
     { text: t('reports'), icon: <ReportsIcon />, path: '/reports' },
     { text: t('settings'), icon: <SettingsIcon />, path: '/settings' },
   ];

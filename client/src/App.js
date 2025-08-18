@@ -13,7 +13,7 @@ import POS from './pages/POS/POS';
 import Products from './pages/Products/Products';
 import Customers from './pages/Customers/Customers';
 import Sales from './pages/Sales/Sales';
-import Inventory from './pages/Inventory/Inventory';
+
 import Reports from './pages/Reports/Reports';
 import Settings from './pages/Settings/Settings';
 
@@ -40,7 +40,7 @@ function AppContent() {
                 <Route path="products" element={<Products />} />
                 <Route path="customers" element={<Customers />} />
                 <Route path="sales" element={<Sales />} />
-                <Route path="inventory" element={<Inventory />} />
+
                 <Route path="reports" element={<Reports />} />
                 <Route path="settings" element={<Settings />} />
               </Route>

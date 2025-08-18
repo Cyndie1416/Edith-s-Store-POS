@@ -7,6 +7,7 @@ require('dotenv').config();
 
 // Import routes
 const productsRouter = require('./routes/products');
+const categoriesRouter = require('./routes/categories');
 const salesRouter = require('./routes/sales');
 const customersRouter = require('./routes/customers');
 const inventoryRouter = require('./routes/inventory');
@@ -60,6 +61,7 @@ if (process.env.NODE_ENV === 'production') {
 
 // API Routes
 app.use('/api/products', productsRouter);
+app.use('/api/categories', categoriesRouter);
 app.use('/api/sales', salesRouter);
 app.use('/api/customers', customersRouter);
 app.use('/api/inventory', inventoryRouter);
