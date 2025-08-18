@@ -152,14 +152,20 @@ const Sales = () => {
       field: 'created_at', 
       headerName: 'Date & Time', 
       width: 180,
-      valueFormatter: (params) => new Date(params.value).toLocaleString()
+      valueFormatter: (params) => {
+        if (!params || params.value === undefined || params.value === null) return 'N/A';
+        return new Date(params.value).toLocaleString();
+      }
     },
     { field: 'customer_name', headerName: 'Customer', width: 150 },
     { 
       field: 'total_amount', 
       headerName: 'Total Amount', 
       width: 130,
-      valueFormatter: (params) => `₱${params.value.toFixed(2)}`
+      valueFormatter: (params) => {
+        if (!params || params.value === undefined || params.value === null) return '₱0.00';
+        return `₱${parseFloat(params.value).toFixed(2)}`;
+      }
     },
     { 
       field: 'payment_method', 
@@ -167,8 +173,9 @@ const Sales = () => {
       width: 140,
       renderCell: (params) => (
         <Chip
-          label={params.value}
+          label={!params || params.value === undefined || params.value === null ? 'unknown' : params.value}
           color={
+            !params || params.value === undefined || params.value === null ? 'warning' :
             params.value === 'cash' ? 'success' :
             params.value === 'gcash' ? 'primary' : 'warning'
           }
@@ -182,8 +189,8 @@ const Sales = () => {
       width: 100,
       renderCell: (params) => (
         <Chip
-          label={params.value}
-          color={params.value === 'completed' ? 'success' : 'error'}
+          label={!params || params.value === undefined || params.value === null ? 'unknown' : params.value}
+          color={!params || params.value === undefined || params.value === null ? 'warning' : params.value === 'completed' ? 'success' : 'error'}
           size="small"
         />
       )
@@ -240,7 +247,7 @@ const Sales = () => {
                 Total Sales
               </Typography>
               <Typography variant="h4" component="div">
-                ₱{totalSales.toFixed(2)}
+                ₱{(totalSales || 0).toFixed(2)}
               </Typography>
             </CardContent>
           </Card>
@@ -356,7 +363,7 @@ const Sales = () => {
       {/* Sales Table */}
       <Paper sx={{ height: 600, width: '100%' }}>
         <DataGrid
-          rows={filteredSales}
+          rows={Array.isArray(filteredSales) ? filteredSales : []}
           columns={salesColumns}
           pageSize={10}
           rowsPerPageOptions={[10, 25, 50]}

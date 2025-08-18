@@ -186,7 +186,11 @@ const Reports = () => {
   };
 
   const getTotalRevenue = () => {
-    return salesData.reduce((total, sale) => total + parseFloat(sale.final_amount), 0);
+    const total = salesData.reduce((total, sale) => {
+      const amount = parseFloat(sale?.final_amount) || 0;
+      return total + amount;
+    }, 0);
+    return isNaN(total) ? 0 : total;
   };
 
   const getTotalSales = () => {
@@ -414,7 +418,7 @@ const Reports = () => {
                     {t('todaysRevenue')}
                   </Typography>
                   <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                    ₱{getTotalRevenue().toLocaleString()}
+                    ₱{(getTotalRevenue() || 0).toLocaleString()}
                   </Typography>
                 </Box>
                 <AttachMoney sx={{ fontSize: 40, color: 'success.main' }} />

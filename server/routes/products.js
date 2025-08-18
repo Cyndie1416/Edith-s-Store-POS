@@ -43,6 +43,25 @@ router.get('/', (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch products' });
     }
     
+    // Ensure all products have proper data structure
+    const processedProducts = products.map(product => ({
+      id: product.id,
+      name: product.name || 'Unnamed Product',
+      description: product.description || '',
+      barcode: product.barcode || null,
+      category_id: product.category_id,
+      category_name: product.category_name || 'No Category',
+      price: parseFloat(product.price) || 0,
+      cost_price: parseFloat(product.cost_price) || 0,
+      stock_quantity: parseInt(product.stock_quantity) || 0,
+      min_stock_level: parseInt(product.min_stock_level) || 5,
+      unit: product.unit || 'piece',
+      image_url: product.image_url || null,
+      is_active: product.is_active,
+      created_at: product.created_at,
+      updated_at: product.updated_at
+    }));
+    
     // Get total count for pagination
     let countQuery = `SELECT COUNT(*) as total FROM products WHERE is_active = 1`;
     let countParams = [];
@@ -68,7 +87,7 @@ router.get('/', (req, res) => {
       }
       
       res.json({
-        products,
+        products: processedProducts,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
@@ -102,7 +121,26 @@ router.get('/:id', (req, res) => {
       return res.status(404).json({ error: 'Product not found' });
     }
     
-    res.json(product);
+    // Ensure proper data structure
+    const processedProduct = {
+      id: product.id,
+      name: product.name || 'Unnamed Product',
+      description: product.description || '',
+      barcode: product.barcode || null,
+      category_id: product.category_id,
+      category_name: product.category_name || 'No Category',
+      price: parseFloat(product.price) || 0,
+      cost_price: parseFloat(product.cost_price) || 0,
+      stock_quantity: parseInt(product.stock_quantity) || 0,
+      min_stock_level: parseInt(product.min_stock_level) || 5,
+      unit: product.unit || 'piece',
+      image_url: product.image_url || null,
+      is_active: product.is_active,
+      created_at: product.created_at,
+      updated_at: product.updated_at
+    };
+    
+    res.json(processedProduct);
   });
 });
 
@@ -128,7 +166,26 @@ router.get('/barcode/:barcode', (req, res) => {
       return res.status(404).json({ error: 'Product not found' });
     }
     
-    res.json(product);
+    // Ensure proper data structure
+    const processedProduct = {
+      id: product.id,
+      name: product.name || 'Unnamed Product',
+      description: product.description || '',
+      barcode: product.barcode || null,
+      category_id: product.category_id,
+      category_name: product.category_name || 'No Category',
+      price: parseFloat(product.price) || 0,
+      cost_price: parseFloat(product.cost_price) || 0,
+      stock_quantity: parseInt(product.stock_quantity) || 0,
+      min_stock_level: parseInt(product.min_stock_level) || 5,
+      unit: product.unit || 'piece',
+      image_url: product.image_url || null,
+      is_active: product.is_active,
+      created_at: product.created_at,
+      updated_at: product.updated_at
+    };
+    
+    res.json(processedProduct);
   });
 });
 
@@ -149,8 +206,8 @@ router.post('/', (req, res) => {
   } = req.body;
   
   // Validation
-  if (!name || !price || !cost_price) {
-    return res.status(400).json({ error: 'Name, price, and cost price are required' });
+  if (!name || !price) {
+    return res.status(400).json({ error: 'Name and price are required' });
   }
   
   const query = `
@@ -161,12 +218,12 @@ router.post('/', (req, res) => {
   `;
   
   const params = [
-    name,
-    description || null,
-    barcode || null,
+    name.trim(),
+    description ? description.trim() : null,
+    barcode ? barcode.trim() : null,
     category_id || null,
     parseFloat(price),
-    parseFloat(cost_price),
+    parseFloat(cost_price) || 0,
     parseInt(stock_quantity) || 0,
     parseInt(min_stock_level) || 5,
     unit || 'piece',
@@ -231,9 +288,9 @@ router.put('/:id', (req, res) => {
     `;
     
     const params = [
-      name || product.name,
-      description !== undefined ? description : product.description,
-      barcode || product.barcode,
+      name ? name.trim() : product.name,
+      description !== undefined ? description.trim() : product.description,
+      barcode ? barcode.trim() : product.barcode,
       category_id || product.category_id,
       parseFloat(price) || product.price,
       parseFloat(cost_price) || product.cost_price,

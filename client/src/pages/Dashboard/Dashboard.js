@@ -32,6 +32,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalSales: 0,
+    totalRevenue: 0,
     totalProducts: 0,
     totalCustomers: 0,
     lowStockCount: 0
@@ -48,27 +49,53 @@ const Dashboard = () => {
     try {
       setLoading(true);
       
-      // Fetch sales summary for today
-      const today = new Date().toISOString().split('T')[0];
-      const salesResponse = await axios.get(`http://localhost:5000/api/sales/summary/daily?date=${today}`);
+      // Initialize with default values
+      let salesData = { total_sales: 0, total_revenue: 0 };
+      let inventoryData = { total_products: 0 };
+      let recentSalesData = { sales: [] };
+      let lowStockData = [];
       
-      // Fetch inventory summary
-      const inventoryResponse = await axios.get('http://localhost:5000/api/inventory/summary');
+      try {
+        // Fetch sales summary for today
+        const today = new Date().toISOString().split('T')[0];
+        const salesResponse = await axios.get(`/api/sales/summary/daily?date=${today}`);
+        salesData = salesResponse.data || salesData;
+      } catch (error) {
+        console.warn('Failed to fetch sales data:', error);
+      }
       
-      // Fetch recent sales
-      const recentSalesResponse = await axios.get('http://localhost:5000/api/sales?limit=5');
+      try {
+        // Fetch inventory summary
+        const inventoryResponse = await axios.get('/api/inventory/summary');
+        inventoryData = inventoryResponse.data || inventoryData;
+      } catch (error) {
+        console.warn('Failed to fetch inventory data:', error);
+      }
       
-      // Fetch low stock alerts
-      const lowStockResponse = await axios.get('http://localhost:5000/api/products/alerts/low-stock');
+      try {
+        // Fetch recent sales
+        const recentSalesResponse = await axios.get('/api/sales?limit=5');
+        recentSalesData = recentSalesResponse.data || recentSalesData;
+      } catch (error) {
+        console.warn('Failed to fetch recent sales:', error);
+      }
+      
+      try {
+        // Fetch low stock alerts
+        const lowStockResponse = await axios.get('/api/products/alerts/low-stock');
+        lowStockData = Array.isArray(lowStockResponse.data) ? lowStockResponse.data : [];
+      } catch (error) {
+        console.warn('Failed to fetch low stock data:', error);
+      }
 
       setStats({
-        totalSales: salesResponse.data.total_sales || 0,
-        totalRevenue: salesResponse.data.total_revenue || 0,
-        totalProducts: inventoryResponse.data.total_products || 0,
-        lowStockCount: lowStockResponse.data.length || 0
+        totalSales: parseInt(salesData.total_sales) || 0,
+        totalRevenue: parseFloat(salesData.total_revenue) || 0,
+        totalProducts: parseInt(inventoryData.total_products) || 0,
+        lowStockCount: lowStockData.length || 0
       });
 
-      setRecentSales(recentSalesResponse.data.sales || []);
+      setRecentSales(recentSalesData.sales || []);
       
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -87,9 +114,11 @@ const Dashboard = () => {
               {title}
             </Typography>
             <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-              {typeof value === 'number' && title.includes('Revenue') 
-                ? `₱${value.toLocaleString()}`
-                : value.toLocaleString()
+              {value !== undefined && value !== null
+                ? (typeof value === 'number' && title.includes('Revenue') 
+                    ? `₱${value.toLocaleString()}`
+                    : value.toLocaleString())
+                : '0'
               }
             </Typography>
           </Box>
@@ -183,10 +212,10 @@ const Dashboard = () => {
                       </ListItemIcon>
                       <ListItemText
                         primary={`Sale #${sale.sale_number}`}
-                        secondary={`${sale.customer_name || 'Walk-in Customer'} • ${new Date(sale.created_at).toLocaleString()}`}
+                        secondary={`${sale.customer_name || 'Walk-in Customer'} • ${sale.created_at ? new Date(sale.created_at).toLocaleString() : 'N/A'}`}
                       />
                       <Chip 
-                        label={`₱${parseFloat(sale.final_amount).toFixed(2)}`}
+                        label={`₱${(parseFloat(sale.final_amount) || 0).toFixed(2)}`}
                         color="primary"
                         variant="outlined"
                       />

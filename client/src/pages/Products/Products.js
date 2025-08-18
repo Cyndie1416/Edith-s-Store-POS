@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Paper,
@@ -85,6 +85,7 @@ const Products = () => {
   const [editingCategory, setEditingCategory] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showScanner, setShowScanner] = useState(false);
@@ -131,6 +132,9 @@ const Products = () => {
     fetchAdjustments();
   }, []);
 
+  // Memoize categories to prevent unnecessary re-renders
+  const memoizedCategories = useMemo(() => categories, [categories]);
+
   useEffect(() => {
     const outOfStock = products.filter(product => 
       product.stock_quantity === 0
@@ -149,6 +153,7 @@ const Products = () => {
       const response = await axios.get(`/api/products?${params}`);
       setProducts(response.data.products || []);
     } catch (error) {
+      console.error('Error fetching products:', error);
       setError('Failed to load products');
     } finally {
       setLoading(false);
@@ -157,10 +162,14 @@ const Products = () => {
 
   const fetchCategories = async () => {
     try {
+      setCategoriesLoading(true);
       const response = await axios.get('/api/categories');
       setCategories(response.data.categories || []);
     } catch (error) {
       console.error('Failed to load categories:', error);
+      setError('Failed to load categories');
+    } finally {
+      setCategoriesLoading(false);
     }
   };
 
@@ -239,13 +248,14 @@ const Products = () => {
         await axios.put(`/api/products/${editingProduct.id}`, productData);
         setSuccess('Product updated successfully!');
       } else {
-        await axios.post('/api/products', productData);
+        const response = await axios.post('/api/products', productData);
         setSuccess('Product created successfully!');
       }
 
       setOpenDialog(false);
       fetchProducts();
     } catch (error) {
+      console.error('Error saving product:', error);
       setError(error.response?.data?.message || 'Failed to save product');
     } finally {
       setLoading(false);
@@ -258,14 +268,22 @@ const Products = () => {
       if (editingCategory) {
         await axios.put(`/api/categories/${editingCategory.id}`, categoryFormData);
         setSuccess('Category updated successfully!');
+        setOpenCategoryDialog(false);
+        fetchCategories();
       } else {
-        await axios.post('/api/categories', categoryFormData);
+        const response = await axios.post('/api/categories', categoryFormData);
         setSuccess('Category created successfully!');
+        
+        // If we're in the product creation dialog, automatically select the new category
+        if (openDialog) {
+          setFormData({ ...formData, category_id: response.data.id });
+        }
+        
+        setOpenCategoryDialog(false);
+        fetchCategories();
       }
-
-      setOpenCategoryDialog(false);
-      fetchCategories();
     } catch (error) {
+      console.error('Error saving category:', error);
       setError(error.response?.data?.message || 'Failed to save category');
     } finally {
       setLoading(false);
@@ -350,7 +368,7 @@ const Products = () => {
                          product.barcode?.includes(searchTerm) ||
                          product.description?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesCategory = !filterCategory || product.category_id?.toString() === filterCategory;
+    const matchesCategory = !filterCategory || product.category_id?.toString() === filterCategory || product.category_id === parseInt(filterCategory);
     const matchesLowStock = !filterLowStock || product.stock_quantity <= (product.min_stock_level || 5);
     
     return matchesSearch && matchesCategory && matchesLowStock;
@@ -375,6 +393,8 @@ const Products = () => {
     }
   });
 
+
+
   const lowStockProducts = products.filter(product => 
     product.stock_quantity <= (product.min_stock_level || 5)
   );
@@ -396,31 +416,58 @@ const Products = () => {
       width: 70,
       renderCell: (params) => (
         <Checkbox
-          checked={selectedProducts.includes(params.value)}
+          checked={selectedProducts.includes(!params || params.value === undefined || params.value === null ? null : params.value)}
           onChange={(e) => {
+            const value = !params || params.value === undefined || params.value === null ? null : params.value;
             if (e.target.checked) {
-              setSelectedProducts([...selectedProducts, params.value]);
+              setSelectedProducts([...selectedProducts, value]);
             } else {
-              setSelectedProducts(selectedProducts.filter(id => id !== params.value));
+              setSelectedProducts(selectedProducts.filter(id => id !== value));
             }
           }}
         />
       )
     },
-    { field: 'name', headerName: 'Product Name', width: 200 },
-    { field: 'barcode', headerName: 'Barcode', width: 150 },
-    { field: 'category_name', headerName: 'Category', width: 120 },
+    { 
+      field: 'name', 
+      headerName: 'Product Name', 
+      width: 200
+    },
+    { 
+      field: 'barcode', 
+      headerName: 'Barcode', 
+      width: 150,
+      valueFormatter: (params) => {
+        if (!params || params.value === undefined || params.value === null) return 'N/A';
+        return params.value;
+      }
+    },
+    { 
+      field: 'category_name', 
+      headerName: 'Category', 
+      width: 120,
+      valueFormatter: (params) => {
+        if (!params || params.value === undefined || params.value === null) return 'No Category';
+        return params.value;
+      }
+    },
     { 
       field: 'price', 
       headerName: 'Price', 
       width: 100,
-      valueFormatter: (params) => `₱${params.value.toFixed(2)}`
+      valueFormatter: (params) => {
+        if (!params || params.value === undefined || params.value === null) return '₱0.00';
+        return `₱${parseFloat(params.value).toFixed(2)}`;
+      }
     },
     { 
       field: 'cost_price', 
       headerName: 'Cost', 
       width: 100,
-      valueFormatter: (params) => `₱${params.value.toFixed(2)}`
+      valueFormatter: (params) => {
+        if (!params || params.value === undefined || params.value === null) return '₱0.00';
+        return `₱${parseFloat(params.value).toFixed(2)}`;
+      }
     },
     { 
       field: 'stock_quantity', 
@@ -428,8 +475,8 @@ const Products = () => {
       width: 100,
       renderCell: (params) => (
         <Chip
-          label={params.value}
-          color={params.value <= (params.row.min_stock_level || 5) ? 'error' : 'success'}
+          label={!params || params.value === undefined || params.value === null ? 0 : params.value}
+          color={(!params || params.value === undefined || params.value === null ? 0 : params.value) <= (!params || !params.row || params.row.min_stock_level === undefined || params.row.min_stock_level === null ? 5 : params.row.min_stock_level) ? 'error' : 'success'}
           size="small"
         />
       )
@@ -437,7 +484,11 @@ const Products = () => {
     { 
       field: 'unit', 
       headerName: 'Unit', 
-      width: 80 
+      width: 80,
+      valueFormatter: (params) => {
+        if (!params || params.value === undefined || params.value === null) return 'piece';
+        return params.value;
+      }
     },
     { 
       field: 'actions', 
@@ -447,28 +498,28 @@ const Products = () => {
         <Box>
           <IconButton
             size="small"
-            onClick={() => handleOpenDialog(params.row)}
+            onClick={() => handleOpenDialog(params?.row)}
             color="primary"
           >
             <Edit />
           </IconButton>
           <IconButton
             size="small"
-            onClick={() => handleDelete(params.row.id)}
+            onClick={() => handleDelete(params?.row?.id)}
             color="error"
           >
             <Delete />
           </IconButton>
           <IconButton
             size="small"
-            onClick={() => openStockAdjustment(params.row)}
+            onClick={() => openStockAdjustment(params?.row)}
             color="info"
           >
             <Inventory />
           </IconButton>
           <IconButton
             size="small"
-            onClick={() => openViewProduct(params.row)}
+            onClick={() => openViewProduct(params?.row)}
             color="primary"
           >
             <Visibility />
@@ -579,6 +630,38 @@ const Products = () => {
         <>
           {/* Search and Actions */}
           <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            
+            {/* Active Filters Display */}
+            {(filterCategory || filterLowStock || searchTerm) && (
+              <Box sx={{ width: '100%', mb: 2, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  Active Filters:
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  {searchTerm && (
+                    <Chip 
+                      label={`Search: "${searchTerm}"`} 
+                      size="small" 
+                      onDelete={() => setSearchTerm('')}
+                    />
+                  )}
+                  {filterCategory && (
+                    <Chip 
+                      label={`Category: ${memoizedCategories.find(c => c.id.toString() === filterCategory)?.name || filterCategory}`} 
+                      size="small" 
+                      onDelete={() => setFilterCategory('')}
+                    />
+                  )}
+                  {filterLowStock && (
+                    <Chip 
+                      label="Low Stock Only" 
+                      size="small" 
+                      onDelete={() => setFilterLowStock(false)}
+                    />
+                  )}
+                </Box>
+              </Box>
+            )}
             <TextField
               placeholder="Search products..."
               value={searchTerm}
@@ -599,13 +682,18 @@ const Products = () => {
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
                 label="Category"
+                disabled={categoriesLoading}
               >
                 <MenuItem value="">All Categories</MenuItem>
-                {categories.map((category) => (
-                  <MenuItem key={category.id} value={category.id.toString()}>
-                    {category.name}
-                  </MenuItem>
-                ))}
+                {categoriesLoading ? (
+                  <MenuItem disabled>Loading categories...</MenuItem>
+                ) : (
+                  memoizedCategories.map((category) => (
+                    <MenuItem key={category.id} value={category.id.toString()}>
+                      {category.name}
+                    </MenuItem>
+                  ))
+                )}
               </Select>
             </FormControl>
 
@@ -619,11 +707,30 @@ const Products = () => {
               label="Low Stock Only"
             />
 
+            {(filterCategory || filterLowStock || searchTerm) && (
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => {
+                  setFilterCategory('');
+                  setFilterLowStock(false);
+                  setSearchTerm('');
+                }}
+              >
+                Clear Filters
+              </Button>
+            )}
+
             <Tooltip title="Refresh">
-              <IconButton onClick={() => {
-                fetchProducts();
-                fetchAdjustments();
-              }} color="primary">
+              <IconButton 
+                onClick={() => {
+                  fetchProducts();
+                  fetchCategories();
+                  fetchAdjustments();
+                }} 
+                color="primary"
+                disabled={loading || categoriesLoading}
+              >
                 <Refresh />
               </IconButton>
             </Tooltip>
@@ -667,18 +774,38 @@ const Products = () => {
             </Box>
           )}
 
+          {/* Results Summary */}
+          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="body2" color="textSecondary">
+              Showing {sortedProducts.length} of {products.length} products
+              {(filterCategory || filterLowStock || searchTerm) && ' (filtered)'}
+            </Typography>
+          </Box>
+
           {/* Products Table */}
           <Paper sx={{ height: 600, width: '100%' }}>
             {loading && <LinearProgress />}
-            <DataGrid
-              rows={sortedProducts}
-              columns={columns}
-              pageSize={10}
-              rowsPerPageOptions={[10, 25, 50]}
-              disableSelectionOnClick
-              sx={{ border: 'none' }}
-              loading={loading}
-            />
+            {!loading && sortedProducts.length === 0 ? (
+              <Box sx={{ p: 3, textAlign: 'center' }}>
+                <Typography variant="h6" color="textSecondary">
+                  No products found
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  Try adjusting your search or filters
+                </Typography>
+              </Box>
+            ) : (
+              <DataGrid
+                rows={Array.isArray(sortedProducts) ? sortedProducts : []}
+                columns={columns}
+                pageSize={10}
+                rowsPerPageOptions={[10, 25, 50]}
+                disableSelectionOnClick
+                sx={{ border: 'none' }}
+                loading={loading}
+                getRowId={(row) => row?.id || Math.random()}
+              />
+            )}
           </Paper>
         </>
       )}
@@ -697,42 +824,64 @@ const Products = () => {
             </Button>
           </Box>
 
-          <Grid container spacing={2}>
-            {categories.map((category) => (
-              <Grid item xs={12} sm={6} md={4} key={category.id}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography variant="h6">{category.name}</Typography>
-                      <IconButton size="small">
-                        <MoreVert />
-                      </IconButton>
-                    </Box>
-                    <Typography color="textSecondary" sx={{ mb: 2 }}>
-                      {category.description || 'No description'}
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Button
-                        size="small"
-                        startIcon={<Edit />}
-                        onClick={() => handleOpenCategoryDialog(category)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="small"
-                        color="error"
-                        startIcon={<Delete />}
-                        onClick={() => handleCategoryDelete(category.id)}
-                      >
-                        Delete
-                      </Button>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
+          {categoriesLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+              <LinearProgress sx={{ width: '100%' }} />
+            </Box>
+          ) : categories.length === 0 ? (
+            <Box sx={{ textAlign: 'center', p: 4 }}>
+              <Typography variant="h6" color="textSecondary">
+                No categories found
+              </Typography>
+              <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                Create your first category to organize your products
+              </Typography>
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => handleOpenCategoryDialog()}
+              >
+                Add First Category
+              </Button>
+            </Box>
+          ) : (
+            <Grid container spacing={2}>
+              {memoizedCategories.map((category) => (
+                <Grid item xs={12} sm={6} md={4} key={category.id}>
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="h6">{category.name}</Typography>
+                        <IconButton size="small">
+                          <MoreVert />
+                        </IconButton>
+                      </Box>
+                      <Typography color="textSecondary" sx={{ mb: 2 }}>
+                        {category.description || 'No description'}
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                          size="small"
+                          startIcon={<Edit />}
+                          onClick={() => handleOpenCategoryDialog(category)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="small"
+                          color="error"
+                          startIcon={<Delete />}
+                          onClick={() => handleCategoryDelete(category.id)}
+                        >
+                          Delete
+                        </Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          )}
         </>
       )}
 
@@ -748,15 +897,24 @@ const Products = () => {
 
           <Paper sx={{ height: 600, width: '100%' }}>
             {loading && <LinearProgress />}
-            <DataGrid
-              rows={lowStockProducts}
-              columns={columns}
-              pageSize={10}
-              rowsPerPageOptions={[10, 25, 50]}
-              disableSelectionOnClick
-              sx={{ border: 'none' }}
-              loading={loading}
-            />
+            {!loading && lowStockProducts.length === 0 ? (
+              <Box sx={{ p: 3, textAlign: 'center' }}>
+                <Typography variant="h6" color="textSecondary">
+                  No low stock products found
+                </Typography>
+              </Box>
+            ) : (
+              <DataGrid
+                rows={Array.isArray(lowStockProducts) ? lowStockProducts : []}
+                columns={columns}
+                pageSize={10}
+                rowsPerPageOptions={[10, 25, 50]}
+                disableSelectionOnClick
+                sx={{ border: 'none' }}
+                loading={loading}
+                getRowId={(row) => row?.id || Math.random()}
+              />
+            )}
           </Paper>
         </>
       )}
@@ -773,15 +931,24 @@ const Products = () => {
 
           <Paper sx={{ height: 600, width: '100%' }}>
             {loading && <LinearProgress />}
-            <DataGrid
-              rows={outOfStockProducts}
-              columns={columns}
-              pageSize={10}
-              rowsPerPageOptions={[10, 25, 50]}
-              disableSelectionOnClick
-              sx={{ border: 'none' }}
-              loading={loading}
-            />
+            {!loading && outOfStockProducts.length === 0 ? (
+              <Box sx={{ p: 3, textAlign: 'center' }}>
+                <Typography variant="h6" color="textSecondary">
+                  No out of stock products found
+                </Typography>
+              </Box>
+            ) : (
+              <DataGrid
+                rows={Array.isArray(outOfStockProducts) ? outOfStockProducts : []}
+                columns={columns}
+                pageSize={10}
+                rowsPerPageOptions={[10, 25, 50]}
+                disableSelectionOnClick
+                sx={{ border: 'none' }}
+                loading={loading}
+                getRowId={(row) => row?.id || Math.random()}
+              />
+            )}
           </Paper>
         </>
       )}
@@ -798,41 +965,78 @@ const Products = () => {
 
           <Paper sx={{ height: 600, width: '100%' }}>
             {loading && <LinearProgress />}
-            <DataGrid
-              rows={adjustments}
-              columns={[
-                { field: 'id', headerName: 'ID', width: 70 },
-                { field: 'product_name', headerName: 'Product', width: 200 },
-                { 
-                  field: 'adjustment_type', 
-                  headerName: 'Type', 
-                  width: 100,
-                  renderCell: (params) => (
-                    <Chip
-                      label={params.value}
-                      color={
-                        params.value === 'add' ? 'success' :
-                        params.value === 'subtract' ? 'error' : 'warning'
-                      }
-                      size="small"
-                    />
-                  )
-                },
-                { field: 'quantity', headerName: 'Quantity', width: 100 },
-                { field: 'reason', headerName: 'Reason', width: 200 },
-                { 
-                  field: 'created_at', 
-                  headerName: 'Date', 
-                  width: 150,
-                  valueFormatter: (params) => new Date(params.value).toLocaleDateString()
-                }
-              ]}
-              pageSize={10}
-              rowsPerPageOptions={[10, 25, 50]}
-              disableSelectionOnClick
-              sx={{ border: 'none' }}
-              loading={loading}
-            />
+            {!loading && adjustments.length === 0 ? (
+              <Box sx={{ p: 3, textAlign: 'center' }}>
+                <Typography variant="h6" color="textSecondary">
+                  No adjustments found
+                </Typography>
+              </Box>
+            ) : (
+              <DataGrid
+                rows={Array.isArray(adjustments) ? adjustments : []}
+                columns={[
+                  { field: 'id', headerName: 'ID', width: 70 },
+                  { 
+                    field: 'product_name', 
+                    headerName: 'Product', 
+                    width: 200,
+                    valueFormatter: (params) => {
+                      if (!params || params.value === undefined || params.value === null) return 'Unknown Product';
+                      return params.value;
+                    }
+                  },
+                  { 
+                    field: 'adjustment_type', 
+                    headerName: 'Type', 
+                    width: 100,
+                    renderCell: (params) => (
+                      <Chip
+                        label={!params || params.value === undefined || params.value === null ? 'unknown' : params.value}
+                        color={
+                          !params || params.value === undefined || params.value === null ? 'warning' :
+                          params.value === 'add' ? 'success' :
+                          params.value === 'subtract' ? 'error' : 'warning'
+                        }
+                        size="small"
+                      />
+                    )
+                  },
+                  { 
+                    field: 'quantity', 
+                    headerName: 'Quantity', 
+                    width: 100,
+                    valueFormatter: (params) => {
+                      if (!params || params.value === undefined || params.value === null) return 0;
+                      return params.value;
+                    }
+                  },
+                  { 
+                    field: 'reason', 
+                    headerName: 'Reason', 
+                    width: 200,
+                    valueFormatter: (params) => {
+                      if (!params || params.value === undefined || params.value === null) return 'No reason provided';
+                      return params.value;
+                    }
+                  },
+                  { 
+                    field: 'created_at', 
+                    headerName: 'Date', 
+                    width: 150,
+                    valueFormatter: (params) => {
+                      if (!params || params.value === undefined || params.value === null) return 'N/A';
+                      return new Date(params.value).toLocaleDateString();
+                    }
+                  }
+                ]}
+                pageSize={10}
+                rowsPerPageOptions={[10, 25, 50]}
+                disableSelectionOnClick
+                sx={{ border: 'none' }}
+                loading={loading}
+                getRowId={(row) => row?.id || Math.random()}
+              />
+            )}
           </Paper>
         </>
       )}
@@ -907,21 +1111,67 @@ const Products = () => {
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <FormControl fullWidth>
-                <InputLabel>Category</InputLabel>
-                <Select
-                  value={formData.category_id}
-                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                  label="Category"
-                >
-                  <MenuItem value="">No Category</MenuItem>
-                  {categories.map((category) => (
-                    <MenuItem key={category.id} value={category.id}>
-                      {category.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <FormControl fullWidth>
+                  <InputLabel>Category</InputLabel>
+                  <Select
+                    value={formData.category_id}
+                    onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                    label="Category"
+                    disabled={categoriesLoading}
+                    renderValue={(value) => {
+                      if (!value) return "No Category";
+                      const category = memoizedCategories.find(c => c.id.toString() === value.toString());
+                      return category ? category.name : "Unknown Category";
+                    }}
+                  >
+                    <MenuItem value="">No Category</MenuItem>
+                    {categoriesLoading ? (
+                      <MenuItem disabled>Loading categories...</MenuItem>
+                    ) : (
+                      <>
+                        {memoizedCategories.map((category) => (
+                          <MenuItem key={category.id} value={category.id}>
+                            {category.name}
+                          </MenuItem>
+                        ))}
+                        <Divider />
+                        <MenuItem 
+                          value="new" 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setFormData({ ...formData, category_id: '' });
+                            handleOpenCategoryDialog();
+                          }}
+                          sx={{ 
+                            color: 'primary.main',
+                            fontStyle: 'italic',
+                            '&:hover': { backgroundColor: 'primary.light', color: 'white' }
+                          }}
+                        >
+                          + Add New Category
+                        </MenuItem>
+                      </>
+                    )}
+                  </Select>
+                </FormControl>
+                <Tooltip title="Add New Category">
+                  <IconButton
+                    onClick={() => handleOpenCategoryDialog()}
+                    sx={{ 
+                      border: '1px solid',
+                      borderColor: 'primary.main',
+                      color: 'primary.main',
+                      '&:hover': { 
+                        backgroundColor: 'primary.main',
+                        color: 'white'
+                      }
+                    }}
+                  >
+                    <Add />
+                  </IconButton>
+                </Tooltip>
+              </Box>
             </Grid>
             <Grid item xs={12} md={3}>
               <TextField
@@ -958,7 +1208,7 @@ const Products = () => {
           <Button
             onClick={handleSubmit}
             variant="contained"
-            disabled={loading || !formData.name || !formData.price}
+            disabled={loading || !formData.name || !formData.price || !formData.stock_quantity}
           >
             {loading ? 'Saving...' : (editingProduct ? 'Update' : 'Create')}
           </Button>
@@ -969,6 +1219,11 @@ const Products = () => {
       <Dialog open={openCategoryDialog} onClose={() => setOpenCategoryDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
           {editingCategory ? 'Edit Category' : 'Add New Category'}
+          {openDialog && !editingCategory && (
+            <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+              This category will be automatically selected for your product after creation.
+            </Typography>
+          )}
         </DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>

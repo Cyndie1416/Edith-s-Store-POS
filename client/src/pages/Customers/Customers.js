@@ -212,11 +212,14 @@ const Customers = () => {
       field: 'credit_balance', 
       headerName: 'Credit Balance', 
       width: 150,
-      valueFormatter: (params) => `₱${params.value.toFixed(2)}`,
+      valueFormatter: (params) => {
+        if (!params || params.value === undefined || params.value === null) return '₱0.00';
+        return `₱${parseFloat(params.value).toFixed(2)}`;
+      },
       renderCell: (params) => (
         <Chip
-          label={`₱${params.value.toFixed(2)}`}
-          color={params.value > 0 ? 'error' : 'success'}
+          label={`₱${!params || params.value === undefined || params.value === null ? '0.00' : parseFloat(params.value).toFixed(2)}`}
+          color={!params || params.value === undefined || params.value === null || params.value <= 0 ? 'success' : 'error'}
           size="small"
         />
       )
@@ -225,7 +228,10 @@ const Customers = () => {
       field: 'credit_limit', 
       headerName: 'Credit Limit', 
       width: 120,
-      valueFormatter: (params) => `₱${params.value.toFixed(2)}`
+      valueFormatter: (params) => {
+        if (!params || params.value === undefined || params.value === null) return '₱0.00';
+        return `₱${parseFloat(params.value).toFixed(2)}`;
+      }
     },
     { 
       field: 'actions', 
@@ -325,7 +331,7 @@ const Customers = () => {
       {/* Customers Table */}
       <Paper sx={{ height: 600, width: '100%' }}>
         <DataGrid
-          rows={activeTab === 0 ? filteredCustomers : customersWithCredit}
+          rows={Array.isArray(activeTab === 0 ? filteredCustomers : customersWithCredit) ? (activeTab === 0 ? filteredCustomers : customersWithCredit) : []}
           columns={columns}
           pageSize={10}
           rowsPerPageOptions={[10, 25, 50]}
@@ -466,7 +472,7 @@ const Customers = () => {
         </DialogTitle>
         <DialogContent>
           <Typography variant="h6" gutterBottom>
-            Current Balance: ₱{selectedCustomer?.credit_balance?.toFixed(2) || '0.00'}
+            Current Balance: ₱{(parseFloat(selectedCustomer?.credit_balance) || 0).toFixed(2)}
           </Typography>
           
           <TableContainer>
@@ -483,7 +489,7 @@ const Customers = () => {
               <TableBody>
                 {creditHistory.map((transaction) => (
                   <TableRow key={transaction.id}>
-                    <TableCell>{new Date(transaction.created_at).toLocaleString()}</TableCell>
+                    <TableCell>{transaction.created_at ? new Date(transaction.created_at).toLocaleString() : 'N/A'}</TableCell>
                     <TableCell>
                       <Chip
                         label={transaction.type === 'add' ? 'Added' : 'Deducted'}
@@ -491,9 +497,9 @@ const Customers = () => {
                         size="small"
                       />
                     </TableCell>
-                    <TableCell>₱{transaction.amount.toFixed(2)}</TableCell>
+                    <TableCell>₱{(parseFloat(transaction.amount) || 0).toFixed(2)}</TableCell>
                     <TableCell>{transaction.description}</TableCell>
-                    <TableCell>₱{transaction.balance_after.toFixed(2)}</TableCell>
+                    <TableCell>₱{(parseFloat(transaction.balance_after) || 0).toFixed(2)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

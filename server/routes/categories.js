@@ -46,10 +46,12 @@ router.get('/:id', (req, res) => {
 
 // Create new category
 router.post('/', (req, res) => {
+  console.log('Category creation request received:', req.body);
   const db = getDatabase();
   const { name, description } = req.body;
   
   if (!name) {
+    console.log('Category creation failed: name is required');
     return res.status(400).json({ error: 'Category name is required' });
   }
   
@@ -71,6 +73,7 @@ router.post('/', (req, res) => {
         return res.status(500).json({ error: 'Category created but failed to fetch' });
       }
       
+      console.log('Category created successfully:', category);
       res.status(201).json(category);
     });
   });
