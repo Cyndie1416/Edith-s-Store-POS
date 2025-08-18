@@ -21,6 +21,7 @@ import Settings from './pages/Settings/Settings';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 
 function AppContent() {
   const { theme } = useTheme();
@@ -30,22 +31,24 @@ function AppContent() {
       <CssBaseline />
       <LocalizationProvider dateAdapter={AdapterDayjs}>
         <AuthProvider>
-          <Router>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/" element={<Layout />}>
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="pos" element={<POS />} />
-                <Route path="products" element={<Products />} />
-                <Route path="customers" element={<Customers />} />
-                <Route path="sales" element={<Sales />} />
+          <NotificationProvider>
+            <Router>
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/" element={<Layout />}>
+                  <Route index element={<Navigate to="/dashboard" replace />} />
+                  <Route path="dashboard" element={<Dashboard />} />
+                  <Route path="pos" element={<POS />} />
+                  <Route path="products" element={<Products />} />
+                  <Route path="customers" element={<Customers />} />
+                  <Route path="sales" element={<Sales />} />
 
-                <Route path="reports" element={<Reports />} />
-                <Route path="settings" element={<Settings />} />
-              </Route>
-            </Routes>
-          </Router>
+                  <Route path="reports" element={<Reports />} />
+                  <Route path="settings" element={<Settings />} />
+                </Route>
+              </Routes>
+            </Router>
+          </NotificationProvider>
         </AuthProvider>
       </LocalizationProvider>
     </MuiThemeProvider>

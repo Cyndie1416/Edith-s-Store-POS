@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -71,10 +71,12 @@ import {
   LocalOffer,
   AttachMoney,
   ShoppingCart,
-  Assessment
+  Assessment,
+  QrCodeScanner
 } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import axios from 'axios';
+import BarcodeScanner from '../../components/BarcodeScanner/BarcodeScanner';
 
 const Products = () => {
   const [products, setProducts] = useState([]);
@@ -108,6 +110,8 @@ const Products = () => {
   const [adjustments, setAdjustments] = useState([]);
   const [outOfStockProducts, setOutOfStockProducts] = useState([]);
 
+
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -132,8 +136,16 @@ const Products = () => {
     fetchAdjustments();
   }, []);
 
+
+
   // Memoize categories to prevent unnecessary re-renders
   const memoizedCategories = useMemo(() => categories, [categories]);
+
+  // Helper function to find category by ID
+  const findCategoryById = useCallback((categoryId) => {
+    if (!categoryId || categoryId === '') return null;
+    return memoizedCategories.find(c => c.id.toString() === categoryId.toString());
+  }, [memoizedCategories]);
 
   useEffect(() => {
     const outOfStock = products.filter(product => 
@@ -141,6 +153,16 @@ const Products = () => {
     );
     setOutOfStockProducts(outOfStock);
   }, [products]);
+
+  // Update form data when categories change (for newly created categories)
+  useEffect(() => {
+    if (openDialog && formData.category_id && !findCategoryById(formData.category_id)) {
+      // If the selected category is not found in the current categories list,
+      // it might be a newly created category that hasn't been loaded yet
+      // We'll keep the category_id as is and let the renderValue handle it
+      console.log('Category not found in list, keeping current selection:', formData.category_id);
+    }
+  }, [categories, openDialog, formData.category_id, findCategoryById]);
 
   const fetchProducts = async () => {
     try {
@@ -150,13 +172,26 @@ const Products = () => {
       if (filterCategory) params.append('category', filterCategory);
       if (filterLowStock) params.append('lowStock', 'true');
       
+      console.log('Fetching products with params:', params.toString());
       const response = await axios.get(`/api/products?${params}`);
+      console.log('Fetched products:', response.data.products?.length || 0, 'products');
       setProducts(response.data.products || []);
     } catch (error) {
       console.error('Error fetching products:', error);
       setError('Failed to load products');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Debug function to show all products including inactive ones
+  const debugShowAllProducts = async () => {
+    try {
+      console.log('=== DEBUG: Fetching ALL products (including inactive) ===');
+      const response = await axios.get('/api/products/debug/all');
+      console.log('All products in database:', response.data);
+    } catch (error) {
+      console.error('Debug fetch error:', error);
     }
   };
 
@@ -240,15 +275,21 @@ const Products = () => {
         price: parseFloat(formData.price),
         cost_price: parseFloat(formData.cost_price) || 0,
         stock_quantity: parseInt(formData.stock_quantity),
-        category_id: formData.category_id ? parseInt(formData.category_id) : null,
+        category_id: formData.category_id && formData.category_id !== '' ? parseInt(formData.category_id) : null,
         min_stock_level: parseInt(formData.min_stock_level)
       };
 
+      console.log('Submitting product data:', productData);
+      console.log('Category ID before submission:', formData.category_id, 'Type:', typeof formData.category_id);
+      console.log('Category ID after processing:', productData.category_id, 'Type:', typeof productData.category_id);
+
       if (editingProduct) {
-        await axios.put(`/api/products/${editingProduct.id}`, productData);
+        const response = await axios.put(`/api/products/${editingProduct.id}`, productData);
+        console.log('Product updated successfully:', response.data);
         setSuccess('Product updated successfully!');
       } else {
         const response = await axios.post('/api/products', productData);
+        console.log('Product created successfully:', response.data);
         setSuccess('Product created successfully!');
       }
 
@@ -256,6 +297,7 @@ const Products = () => {
       fetchProducts();
     } catch (error) {
       console.error('Error saving product:', error);
+      console.error('Error response:', error.response?.data);
       setError(error.response?.data?.message || 'Failed to save product');
     } finally {
       setLoading(false);
@@ -274,13 +316,29 @@ const Products = () => {
         const response = await axios.post('/api/categories', categoryFormData);
         setSuccess('Category created successfully!');
         
+        // Debug: Log the response to see the structure
+        console.log('Category creation response:', response);
+        
         // If we're in the product creation dialog, automatically select the new category
         if (openDialog) {
-          setFormData({ ...formData, category_id: response.data.id });
+          // The backend returns the category object directly, not wrapped in data
+          const newCategoryId = response.data.id.toString();
+          console.log('Setting new category ID:', newCategoryId);
+          
+          // First, refresh categories to include the new one
+          await fetchCategories();
+          
+          // Then set the form data with the new category
+          setFormData(prev => ({ ...prev, category_id: newCategoryId }));
+          
+          // Show a success message specific to category creation
+          setSuccess('Category created and selected for your product!');
         }
         
         setOpenCategoryDialog(false);
-        fetchCategories();
+        if (!openDialog) {
+          fetchCategories();
+        }
       }
     } catch (error) {
       console.error('Error saving category:', error);
@@ -293,11 +351,15 @@ const Products = () => {
   const handleDelete = async (productId) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
-        await axios.delete(`/api/products/${productId}`);
+        console.log('Deleting product with ID:', productId);
+        const response = await axios.delete(`/api/products/${productId}`);
+        console.log('Delete response:', response.data);
         setSuccess('Product deleted successfully!');
         fetchProducts();
       } catch (error) {
-        setError('Failed to delete product');
+        console.error('Delete error:', error);
+        console.error('Error response:', error.response?.data);
+        setError(error.response?.data?.message || 'Failed to delete product');
       }
     }
   };
@@ -361,6 +423,32 @@ const Products = () => {
   const openViewProduct = (product) => {
     setViewingProduct(product);
     setOpenViewDialog(true);
+  };
+
+  // Barcode Scanner Functions
+  const startScanner = () => {
+    setShowScanner(true);
+  };
+
+  const handleBarcodeResult = async (barcode) => {
+    try {
+      // Check if product with this barcode already exists
+      const existingProduct = products.find(p => p.barcode === barcode);
+      if (existingProduct) {
+        setError(`Product with barcode ${barcode} already exists: ${existingProduct.name}`);
+        setShowScanner(false);
+        return;
+      }
+
+      // Set the barcode in the form and open the product dialog
+      setFormData(prev => ({ ...prev, barcode: barcode }));
+      setEditingProduct(null);
+      setOpenDialog(true);
+      setSuccess(`Barcode ${barcode} scanned. Please fill in the product details.`);
+      setShowScanner(false);
+    } catch (error) {
+      setError('Error processing barcode');
+    }
   };
 
   const filteredProducts = products.filter(product => {
@@ -663,14 +751,34 @@ const Products = () => {
               </Box>
             )}
             <TextField
-              placeholder="Search products..."
+              placeholder="Search products or enter barcode..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && searchTerm.trim()) {
+                  // Try to find product by barcode if it looks like a barcode
+                  const product = products.find(p => p.barcode === searchTerm.trim());
+                  if (product) {
+                    handleOpenDialog(product);
+                    setSearchTerm('');
+                    setSuccess(`Product found: ${product.name}`);
+                  }
+                }
+              }}
               sx={{ flex: 1, minWidth: 200 }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
                     <Search />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <Tooltip title="Enter barcode and press Enter">
+                      <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
+                        Barcode: Enter + ↵
+                      </Typography>
+                    </Tooltip>
                   </InputAdornment>
                 ),
               }}
@@ -748,6 +856,13 @@ const Products = () => {
             >
               Add Product
             </Button>
+
+            {/* Debug button - remove in production */}
+            <Tooltip title="Debug: Show all products">
+              <IconButton onClick={debugShowAllProducts} color="secondary">
+                <Assessment />
+              </IconButton>
+            </Tooltip>
           </Box>
 
           {/* Bulk Actions */}
@@ -1058,12 +1173,31 @@ const Products = () => {
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Barcode"
-                value={formData.barcode}
-                onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-              />
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <TextField
+                  fullWidth
+                  label="Barcode"
+                  value={formData.barcode}
+                  onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Tooltip title="Scan Barcode">
+                          <IconButton
+                            onClick={() => {
+                              setOpenDialog(false);
+                              startScanner();
+                            }}
+                            edge="end"
+                          >
+                            <CameraAlt />
+                          </IconButton>
+                        </Tooltip>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Box>
             </Grid>
             <Grid item xs={12}>
               <TextField
@@ -1115,14 +1249,17 @@ const Products = () => {
                 <FormControl fullWidth>
                   <InputLabel>Category</InputLabel>
                   <Select
-                    value={formData.category_id}
-                    onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                    value={formData.category_id || ''}
+                    onChange={(e) => {
+                      console.log('Category changed:', e.target.value);
+                      setFormData({ ...formData, category_id: e.target.value });
+                    }}
                     label="Category"
                     disabled={categoriesLoading}
                     renderValue={(value) => {
-                      if (!value) return "No Category";
-                      const category = memoizedCategories.find(c => c.id.toString() === value.toString());
-                      return category ? category.name : "Unknown Category";
+                      if (!value || value === '') return "No Category";
+                      const category = findCategoryById(value);
+                      return category ? category.name : `Category ID: ${value}`;
                     }}
                   >
                     <MenuItem value="">No Category</MenuItem>
@@ -1137,9 +1274,10 @@ const Products = () => {
                         ))}
                         <Divider />
                         <MenuItem 
-                          value="new" 
+                          value=""
                           onClick={(e) => {
                             e.preventDefault();
+                            e.stopPropagation();
                             setFormData({ ...formData, category_id: '' });
                             handleOpenCategoryDialog();
                           }}
@@ -1260,18 +1398,14 @@ const Products = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Barcode Scanner Dialog */}
-      <Dialog open={showScanner} onClose={() => setShowScanner(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Barcode Scanner</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Camera access is required for barcode scanning. This feature will be implemented with a barcode scanning library.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowScanner(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
+      {/* Barcode Scanner Component */}
+      <BarcodeScanner
+        open={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScan={handleBarcodeResult}
+        title="Scan Product Barcode"
+        description="Point your camera at a barcode to scan. The scanner will automatically detect and pre-fill the barcode field for a new product."
+      />
 
       {/* Stock Adjustment Dialog */}
       <Dialog open={openStockDialog} onClose={() => setOpenStockDialog(false)} maxWidth="sm" fullWidth>

@@ -131,7 +131,7 @@ router.get('/profile', (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'ediths-pos-secret-key');
     const db = getDatabase();
     
-    const query = 'SELECT id, username, full_name, role, created_at FROM users WHERE id = ?';
+    const query = 'SELECT id, username, full_name, email, role, created_at FROM users WHERE id = ?';
     
     db.get(query, [decoded.id], (err, user) => {
       if (err) {
@@ -154,7 +154,7 @@ router.get('/profile', (req, res) => {
 // Update user profile
 router.put('/profile', (req, res) => {
   const token = req.headers.authorization?.split(' ')[1];
-  const { full_name, current_password, new_password } = req.body;
+  const { full_name, email, current_password, new_password } = req.body;
   
   if (!token) {
     return res.status(401).json({ error: 'No token provided' });
@@ -192,13 +192,13 @@ router.put('/profile', (req, res) => {
       }
       
       // Update user
-      let query = 'UPDATE users SET full_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
-      let params = [full_name || user.full_name, decoded.id];
+      let query = 'UPDATE users SET full_name = ?, email = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+      let params = [full_name || user.full_name, email || user.email, decoded.id];
       
       if (new_password) {
         const hashedPassword = await bcrypt.hash(new_password, 10);
-        query = 'UPDATE users SET full_name = ?, password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
-        params = [full_name || user.full_name, hashedPassword, decoded.id];
+        query = 'UPDATE users SET full_name = ?, email = ?, password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+        params = [full_name || user.full_name, email || user.email, hashedPassword, decoded.id];
       }
       
       db.run(query, params, function(err) {
@@ -208,7 +208,7 @@ router.put('/profile', (req, res) => {
         }
         
         // Get updated user
-        db.get('SELECT id, username, full_name, role, created_at FROM users WHERE id = ?', [decoded.id], (err, updatedUser) => {
+        db.get('SELECT id, username, full_name, email, role, created_at FROM users WHERE id = ?', [decoded.id], (err, updatedUser) => {
           if (err) {
             console.error('Error fetching updated user:', err);
             return res.status(500).json({ error: 'Profile updated but failed to fetch' });

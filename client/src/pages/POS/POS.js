@@ -44,6 +44,7 @@ import {
 } from '@mui/icons-material';
 import axios from 'axios';
 import { useLanguage } from '../../contexts/LanguageContext';
+import BarcodeScanner from '../../components/BarcodeScanner/BarcodeScanner';
 
 const POS = () => {
   const { t } = useLanguage();
@@ -62,13 +63,14 @@ const POS = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showScanner, setShowScanner] = useState(false);
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+
 
   useEffect(() => {
     fetchProducts();
     fetchCustomers();
   }, []);
+
+
 
   useEffect(() => {
     if (searchTerm) {
@@ -225,22 +227,21 @@ const POS = () => {
 
   const startScanner = () => {
     setShowScanner(true);
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      .then(stream => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      })
-      .catch(err => {
-        setError('Failed to access camera');
-        setShowScanner(false);
-      });
   };
 
-  const stopScanner = () => {
-    setShowScanner(false);
-    if (videoRef.current && videoRef.current.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+  const handleBarcodeResult = async (barcode) => {
+    try {
+      // Search for product with this barcode
+      const product = products.find(p => p.barcode === barcode);
+      if (product) {
+        addToCart(product);
+        setSuccess(`Product found: ${product.name}`);
+        setShowScanner(false);
+      } else {
+        setError(`No product found with barcode: ${barcode}`);
+      }
+    } catch (error) {
+      setError('Error processing barcode');
     }
   };
 
@@ -262,13 +263,33 @@ const POS = () => {
             <Box sx={{ mb: 2, display: 'flex', gap: 1 }}>
               <TextField
                 fullWidth
-                placeholder={t('searchProducts')}
+                placeholder={t('searchProducts') + ' or scan barcode'}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && searchTerm.trim()) {
+                    // Try to find product by barcode if it looks like a barcode
+                    const product = products.find(p => p.barcode === searchTerm.trim());
+                    if (product) {
+                      addToCart(product);
+                      setSearchTerm('');
+                      setSuccess(`Product added: ${product.name}`);
+                    }
+                  }
+                }}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
                       <Search />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <Tooltip title="Quick barcode input">
+                        <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
+                          Enter barcode & press Enter
+                        </Typography>
+                      </Tooltip>
                     </InputAdornment>
                   ),
                 }}
@@ -489,21 +510,14 @@ const POS = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Barcode Scanner Dialog */}
-      <Dialog open={showScanner} onClose={stopScanner} maxWidth="sm" fullWidth>
-        <DialogTitle>Barcode Scanner</DialogTitle>
-        <DialogContent>
-          <video
-            ref={videoRef}
-            autoPlay
-            style={{ width: '100%', height: '300px' }}
-          />
-          <canvas ref={canvasRef} style={{ display: 'none' }} />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={stopScanner}>Close</Button>
-        </DialogActions>
-      </Dialog>
+      {/* Barcode Scanner Component */}
+      <BarcodeScanner
+        open={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScan={handleBarcodeResult}
+        title="Scan Product Barcode"
+        description="Point your camera at a barcode to scan. The scanner will automatically detect and add the product to your cart."
+      />
 
       {/* Notifications */}
       <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError('')}>

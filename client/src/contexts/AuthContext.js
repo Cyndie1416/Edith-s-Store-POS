@@ -89,7 +89,9 @@ export const AuthProvider = ({ children }) => {
   const updateProfile = async (profileData) => {
     try {
       const response = await axios.put('http://localhost:5000/api/auth/profile', profileData);
-      setUser(response.data.user);
+      if (response.data.user) {
+        setUser(response.data.user);
+      }
       return { success: true, data: response.data };
     } catch (error) {
       console.error('Profile update failed:', error);

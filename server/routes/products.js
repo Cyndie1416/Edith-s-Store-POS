@@ -205,6 +205,9 @@ router.post('/', (req, res) => {
     image_url
   } = req.body;
   
+  console.log('Creating product with data:', req.body);
+  console.log('Category ID:', category_id, 'Type:', typeof category_id);
+  
   // Validation
   if (!name || !price) {
     return res.status(400).json({ error: 'Name and price are required' });
@@ -268,6 +271,9 @@ router.put('/:id', (req, res) => {
     image_url
   } = req.body;
   
+  console.log('Updating product with data:', req.body);
+  console.log('Category ID:', category_id, 'Type:', typeof category_id);
+  
   // Check if product exists
   db.get('SELECT * FROM products WHERE id = ?', [id], (err, product) => {
     if (err) {
@@ -328,19 +334,38 @@ router.delete('/:id', (req, res) => {
   const db = getDatabase();
   const { id } = req.params;
   
-  const query = 'UPDATE products SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+  console.log('Attempting to delete product with ID:', id);
   
-  db.run(query, [id], function(err) {
+  // First check if the product exists
+  db.get('SELECT * FROM products WHERE id = ?', [id], (err, product) => {
     if (err) {
-      console.error('Error deleting product:', err);
-      return res.status(500).json({ error: 'Failed to delete product' });
+      console.error('Error checking product existence:', err);
+      return res.status(500).json({ error: 'Failed to check product' });
     }
     
-    if (this.changes === 0) {
+    if (!product) {
+      console.log('Product not found with ID:', id);
       return res.status(404).json({ error: 'Product not found' });
     }
     
-    res.json({ message: 'Product deleted successfully' });
+    console.log('Found product:', product.name, 'Current is_active:', product.is_active);
+    
+    const query = 'UPDATE products SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+    
+    db.run(query, [id], function(err) {
+      if (err) {
+        console.error('Error deleting product:', err);
+        return res.status(500).json({ error: 'Failed to delete product' });
+      }
+      
+      console.log('Delete operation completed. Rows affected:', this.changes);
+      
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+      
+      res.json({ message: 'Product deleted successfully', productId: id });
+    });
   });
 });
 
@@ -449,6 +474,32 @@ router.get('/alerts/low-stock', (req, res) => {
     }
     
     res.json(products);
+  });
+});
+
+// Debug route to show all products including inactive ones
+router.get('/debug/all', (req, res) => {
+  const db = getDatabase();
+  
+  const query = `
+    SELECT p.*, c.name as category_name 
+    FROM products p 
+    LEFT JOIN categories c ON p.category_id = c.id 
+    ORDER BY p.id
+  `;
+  
+  db.all(query, (err, products) => {
+    if (err) {
+      console.error('Error fetching all products:', err);
+      return res.status(500).json({ error: 'Failed to fetch all products' });
+    }
+    
+    res.json({
+      total: products.length,
+      active: products.filter(p => p.is_active === 1).length,
+      inactive: products.filter(p => p.is_active === 0).length,
+      products: products
+    });
   });
 });
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
@@ -14,10 +14,18 @@ import {
   ListItemIcon,
   ListItemText,
   Avatar,
-  Menu,
-  MenuItem,
   Badge,
-  Chip
+  Chip,
+  Popover,
+  ListItemAvatar,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  Divider as MuiDivider,
+  Tooltip,
+  Switch,
+  FormControlLabel
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -28,24 +36,37 @@ import {
   ShoppingCart as SalesIcon,
   Assessment as ReportsIcon,
   Settings as SettingsIcon,
-  AccountCircle,
   Notifications,
   Logout,
   Brightness4,
-  Brightness7
+  Brightness7,
+  NotificationsActive,
+  NotificationsOff,
+  Clear,
+  MoreVert,
+  Circle
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 const drawerWidth = 240;
 
 const Layout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [anchorEl, setAnchorEl] = useState(null);
+  const [notificationAnchor, setNotificationAnchor] = useState(null);
   const { user, logout } = useAuth();
   const { mode, toggleMode } = useTheme();
   const { t } = useLanguage();
+  const { 
+    notifications, 
+    unreadCount, 
+    settings, 
+    markAsRead, 
+    clearNotifications, 
+    updateSettings 
+  } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -63,18 +84,48 @@ const Layout = () => {
     setMobileOpen(!mobileOpen);
   };
 
-  const handleProfileMenuOpen = (event) => {
-    setAnchorEl(event.currentTarget);
+
+
+  const handleNotificationOpen = (event) => {
+    setNotificationAnchor(event.currentTarget);
   };
 
-  const handleProfileMenuClose = () => {
-    setAnchorEl(null);
+  const handleNotificationClose = () => {
+    setNotificationAnchor(null);
   };
 
   const handleLogout = () => {
     logout();
     navigate('/login');
-    handleProfileMenuClose();
+  };
+
+  const formatTimeAgo = (timestamp) => {
+    const now = new Date();
+    const notificationTime = new Date(timestamp);
+    const diffInMinutes = Math.floor((now - notificationTime) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} hours ago`;
+    return `${Math.floor(diffInMinutes / 1440)} days ago`;
+  };
+
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'high': return 'error';
+      case 'medium': return 'warning';
+      case 'low': return 'info';
+      default: return 'default';
+    }
+  };
+
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'lowStock': return <InventoryIcon fontSize="small" />;
+      case 'sales': return <SalesIcon fontSize="small" />;
+      case 'system': return <SettingsIcon fontSize="small" />;
+      default: return <Notifications fontSize="small" />;
+    }
   };
 
   const drawer = (
@@ -128,28 +179,36 @@ const Layout = () => {
           </Typography>
           
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Chip 
-              label={user?.role || 'User'} 
-              size="small" 
-              color="secondary" 
-              variant="outlined"
-            />
-            <IconButton color="inherit" onClick={toggleMode}>
-              {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
-            </IconButton>
-            <IconButton color="inherit">
-              <Badge badgeContent={4} color="error">
-                <Notifications />
-              </Badge>
-            </IconButton>
-            <IconButton
-              onClick={handleProfileMenuOpen}
-              color="inherit"
-            >
-              <Avatar sx={{ width: 32, height: 32 }}>
-                <AccountCircle />
-              </Avatar>
-            </IconButton>
+            {/* Theme Toggle */}
+            <Tooltip title={`Switch to ${mode === 'dark' ? 'light' : 'dark'} mode`}>
+              <IconButton color="inherit" onClick={toggleMode}>
+                {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+              </IconButton>
+            </Tooltip>
+
+            {/* Notifications */}
+            <Tooltip title="Notifications">
+              <IconButton 
+                color="inherit" 
+                onClick={handleNotificationOpen}
+                sx={{ position: 'relative' }}
+              >
+                <Badge badgeContent={unreadCount} color="error">
+                  <Notifications />
+                </Badge>
+              </IconButton>
+            </Tooltip>
+
+            {/* Logout Button */}
+            <Tooltip title="Logout">
+              <IconButton
+                onClick={handleLogout}
+                color="inherit"
+                sx={{ ml: 1 }}
+              >
+                <Logout />
+              </IconButton>
+            </Tooltip>
           </Box>
         </Toolbar>
       </AppBar>
@@ -196,25 +255,135 @@ const Layout = () => {
         <Outlet />
       </Box>
 
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleProfileMenuClose}
-        onClick={handleProfileMenuClose}
+      
+
+      {/* Notifications Popover */}
+      <Popover
+        anchorEl={notificationAnchor}
+        open={Boolean(notificationAnchor)}
+        onClose={handleNotificationClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        PaperProps={{
+          sx: { width: 400, maxHeight: 500 }
+        }}
       >
-        <MenuItem onClick={() => navigate('/settings')}>
-          <ListItemIcon>
-            <SettingsIcon fontSize="small" />
-          </ListItemIcon>
-          {t('settings')}
-        </MenuItem>
-        <MenuItem onClick={handleLogout}>
-          <ListItemIcon>
-            <Logout fontSize="small" />
-          </ListItemIcon>
-          {t('logout')}
-        </MenuItem>
-      </Menu>
+        <Card>
+          <CardHeader
+            title="Notifications"
+            action={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <IconButton size="small" onClick={clearNotifications}>
+                  <Clear />
+                </IconButton>
+                <IconButton size="small" onClick={handleNotificationClose}>
+                  <MoreVert />
+                </IconButton>
+              </Box>
+            }
+          />
+          <MuiDivider />
+          <CardContent sx={{ p: 0 }}>
+            {notifications.length === 0 ? (
+              <Box sx={{ p: 3, textAlign: 'center' }}>
+                <NotificationsOff sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                <Typography variant="body2" color="text.secondary">
+                  No notifications
+                </Typography>
+              </Box>
+            ) : (
+              <List sx={{ p: 0 }}>
+                {notifications.map((notification) => (
+                  <ListItem
+                    key={notification.id}
+                    sx={{
+                      backgroundColor: notification.read ? 'transparent' : 'action.hover',
+                      borderLeft: `3px solid`,
+                      borderColor: `${getPriorityColor(notification.priority)}.main`,
+                      '&:hover': { backgroundColor: 'action.hover' }
+                    }}
+                    onClick={() => markAsRead(notification.id)}
+                  >
+                    <ListItemAvatar>
+                      <Avatar sx={{ bgcolor: `${getPriorityColor(notification.priority)}.light` }}>
+                        {getNotificationIcon(notification.type)}
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: notification.read ? 'normal' : 'bold' }}>
+                            {notification.title}
+                          </Typography>
+                          {!notification.read && (
+                            <Circle sx={{ fontSize: 8, color: 'primary.main' }} />
+                          )}
+                        </Box>
+                      }
+                      secondary={
+                        <Box>
+                          <Typography variant="body2" color="text.secondary">
+                            {notification.message}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {formatTimeAgo(notification.timestamp)}
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </CardContent>
+          {notifications.length > 0 && (
+            <>
+              <MuiDivider />
+              <Box sx={{ p: 2 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Notification Settings
+                </Typography>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={settings.lowStock}
+                      onChange={(e) => updateSettings({ lowStock: e.target.checked })}
+                      size="small"
+                    />
+                  }
+                  label="Low Stock Alerts"
+                />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={settings.sales}
+                      onChange={(e) => updateSettings({ sales: e.target.checked })}
+                      size="small"
+                    />
+                  }
+                  label="Sales Notifications"
+                />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={settings.system}
+                      onChange={(e) => updateSettings({ system: e.target.checked })}
+                      size="small"
+                    />
+                  }
+                  label="System Updates"
+                />
+              </Box>
+            </>
+          )}
+        </Card>
+      </Popover>
     </Box>
   );
 };
