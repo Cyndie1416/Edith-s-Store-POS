@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getDatabase } = require('../models/database');
+const { generateSalesNotification } = require('../utils/notificationHelper');
 
 // Get all sales with optional filtering
 router.get('/', (req, res) => {
@@ -329,10 +330,22 @@ router.post('/', (req, res) => {
               return res.status(500).json({ error: 'Sale created but failed to fetch items' });
             }
             
-            res.status(201).json({
-              ...sale,
-              items
-            });
+            // Generate sales notification
+            generateSalesNotification(saleId)
+              .then(() => {
+                res.status(201).json({
+                  ...sale,
+                  items
+                });
+              })
+              .catch(err => {
+                console.error('Error creating sales notification:', err);
+                // Don't fail the sale if notification fails
+                res.status(201).json({
+                  ...sale,
+                  items
+                });
+              });
           });
         });
       }

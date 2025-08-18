@@ -14,6 +14,7 @@ export const useNotifications = () => {
 export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState({
     lowStock: true,
     sales: true,
@@ -22,18 +23,9 @@ export const NotificationProvider = ({ children }) => {
     desktop: false
   });
 
-  // Load notifications from localStorage on mount
+  // Load settings from localStorage on mount
   useEffect(() => {
-    const savedNotifications = localStorage.getItem('notifications');
     const savedSettings = localStorage.getItem('notificationSettings');
-    
-    if (savedNotifications) {
-      try {
-        setNotifications(JSON.parse(savedNotifications));
-      } catch (error) {
-        console.error('Error loading notifications:', error);
-      }
-    }
     
     if (savedSettings) {
       try {
@@ -44,64 +36,122 @@ export const NotificationProvider = ({ children }) => {
     }
   }, []);
 
-  // Save notifications to localStorage whenever they change
+  // Load notifications from database on mount and set up polling
   useEffect(() => {
-    localStorage.setItem('notifications', JSON.stringify(notifications));
-    setUnreadCount(notifications.filter(n => !n.read).length);
-  }, [notifications]);
+    fetchNotifications();
+    
+    // Set up polling for new notifications every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   // Save settings to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('notificationSettings', JSON.stringify(settings));
   }, [settings]);
 
-  const addNotification = (notification) => {
-    const newNotification = {
-      id: Date.now(),
-      timestamp: new Date().toISOString(),
-      read: false,
-      ...notification
-    };
-    
-    setNotifications(prev => [newNotification, ...prev]);
-    
-    // Show desktop notification if enabled
-    if (settings.desktop && 'Notification' in window && Notification.permission === 'granted') {
-      new Notification(notification.title, {
-        body: notification.message,
-        icon: '/favicon.ico'
+  // Fetch notifications from database
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get('/api/notifications', {
+        params: { limit: 100 }
       });
+      setNotifications(response.data);
+      setUnreadCount(response.data.filter(n => !n.read_status).length);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    } finally {
+      setLoading(false);
     }
-    
-    // Play sound if enabled
-    if (settings.sound) {
-      // You can add sound notification here
-      console.log('Notification sound would play here');
+  };
+
+  // Fetch unread count
+  const fetchUnreadCount = async () => {
+    try {
+      const response = await axios.get('/api/notifications/unread-count');
+      setUnreadCount(response.data.unread_count);
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
     }
   };
 
-  const markAsRead = (notificationId) => {
-    setNotifications(prev => 
-      prev.map(notif => 
-        notif.id === notificationId ? { ...notif, read: true } : notif
-      )
-    );
+  const addNotification = async (notification) => {
+    try {
+      const response = await axios.post('/api/notifications', notification);
+      const newNotification = response.data;
+      
+      setNotifications(prev => [newNotification, ...prev]);
+      setUnreadCount(prev => prev + 1);
+      
+      // Show desktop notification if enabled
+      if (settings.desktop && 'Notification' in window && Notification.permission === 'granted') {
+        new Notification(notification.title, {
+          body: notification.message,
+          icon: '/favicon.ico'
+        });
+      }
+      
+      // Play sound if enabled
+      if (settings.sound) {
+        // You can add sound notification here
+        console.log('Notification sound would play here');
+      }
+    } catch (error) {
+      console.error('Error adding notification:', error);
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => 
-      prev.map(notif => ({ ...notif, read: true }))
-    );
+  const markAsRead = async (notificationId) => {
+    try {
+      await axios.patch(`/api/notifications/${notificationId}/read`);
+      setNotifications(prev => 
+        prev.map(notif => 
+          notif.id === notificationId ? { ...notif, read_status: 1 } : notif
+        )
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
   };
 
-  const clearNotifications = () => {
-    setNotifications([]);
+  const markAllAsRead = async () => {
+    try {
+      await axios.patch('/api/notifications/mark-all-read');
+      setNotifications(prev => 
+        prev.map(notif => ({ ...notif, read_status: 1 }))
+      );
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
   };
 
-  const deleteNotification = (notificationId) => {
-    setNotifications(prev => 
-      prev.filter(notif => notif.id !== notificationId)
-    );
+  const clearNotifications = async () => {
+    try {
+      await axios.delete('/api/notifications');
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error clearing notifications:', error);
+    }
+  };
+
+  const deleteNotification = async (notificationId) => {
+    try {
+      await axios.delete(`/api/notifications/${notificationId}`);
+      const notification = notifications.find(n => n.id === notificationId);
+      if (notification && !notification.read_status) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+      setNotifications(prev => 
+        prev.filter(notif => notif.id !== notificationId)
+      );
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
   };
 
   const updateSettings = (newSettings) => {
@@ -119,48 +169,29 @@ export const NotificationProvider = ({ children }) => {
     return false;
   };
 
-  // Auto-generate notifications for demo purposes
+  // Generate low stock notifications periodically
   useEffect(() => {
-    const generateDemoNotifications = () => {
-      const demoNotifications = [
-        {
-          type: 'lowStock',
-          title: 'Low Stock Alert',
-          message: 'Magic Sarap 8g is running low on stock (5 remaining)',
-          priority: 'high'
-        },
-        {
-          type: 'sales',
-          title: 'New Sale Completed',
-          message: 'Sale #1234 completed for ₱1,250.00',
-          priority: 'medium'
-        },
-        {
-          type: 'system',
-          title: 'System Update',
-          message: 'Database backup completed successfully',
-          priority: 'low'
-        }
-      ];
-
-      // Add a random notification every 30 seconds for demo
-      const interval = setInterval(() => {
-        const randomNotification = demoNotifications[Math.floor(Math.random() * demoNotifications.length)];
-        addNotification(randomNotification);
-      }, 30000);
-
-      return () => clearInterval(interval);
+    const generateLowStockNotifications = async () => {
+      try {
+        await axios.post('/api/notifications/generate-low-stock');
+      } catch (error) {
+        console.error('Error generating low stock notifications:', error);
+      }
     };
 
-    // Only generate demo notifications if there are no existing ones
-    if (notifications.length === 0) {
-      generateDemoNotifications();
-    }
-  }, [notifications.length]);
+    // Generate low stock notifications every 5 minutes
+    const interval = setInterval(generateLowStockNotifications, 5 * 60 * 1000);
+    
+    // Generate initial low stock notifications
+    generateLowStockNotifications();
+
+    return () => clearInterval(interval);
+  }, []);
 
   const value = {
     notifications,
     unreadCount,
+    loading,
     settings,
     addNotification,
     markAsRead,
@@ -168,7 +199,9 @@ export const NotificationProvider = ({ children }) => {
     clearNotifications,
     deleteNotification,
     updateSettings,
-    requestDesktopPermission
+    requestDesktopPermission,
+    fetchNotifications,
+    fetchUnreadCount
   };
 
   return (

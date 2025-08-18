@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getDatabase } = require('../models/database');
+const { generateLowStockNotification } = require('../utils/notificationHelper');
 
 // Get inventory summary
 router.get('/summary', (req, res) => {
@@ -190,6 +191,18 @@ router.post('/adjustments', (req, res) => {
               if (err) {
                 console.error('Error fetching updated product:', err);
                 return res.status(500).json({ error: 'Adjustment created but failed to fetch product' });
+              }
+              
+              // Check if product is now low stock and generate notification
+              if (updatedProduct.stock_quantity <= updatedProduct.min_stock_level) {
+                generateLowStockNotification(product_id)
+                  .then(() => {
+                    console.log('Low stock notification generated for product:', updatedProduct.name);
+                  })
+                  .catch(err => {
+                    console.error('Error creating low stock notification:', err);
+                    // Don't fail the adjustment if notification fails
+                  });
               }
               
               res.status(201).json({

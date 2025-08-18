@@ -170,6 +170,23 @@ async function initializeDatabase() {
         )
       `);
 
+      // Notifications table
+      db.run(`
+        CREATE TABLE IF NOT EXISTS notifications (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          type TEXT NOT NULL,
+          title TEXT NOT NULL,
+          message TEXT NOT NULL,
+          priority TEXT DEFAULT 'medium',
+          read_status BOOLEAN DEFAULT 0,
+          user_id INTEGER,
+          reference_id INTEGER,
+          reference_type TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+      `);
+
       // Create indexes for better performance
       db.run('CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)');
       db.run('CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id)');
@@ -183,6 +200,10 @@ async function initializeDatabase() {
       db.run('CREATE INDEX IF NOT EXISTS idx_credit_transactions_customer ON credit_transactions(customer_id)');
       db.run('CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_product ON inventory_adjustments(product_id)');
       db.run('CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_date ON inventory_adjustments(created_at)');
+      db.run('CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id)');
+      db.run('CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type)');
+      db.run('CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read_status)');
+      db.run('CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at)');
 
       // Insert default admin user
       await insertDefaultAdmin();

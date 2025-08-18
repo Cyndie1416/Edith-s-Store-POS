@@ -160,20 +160,23 @@ const POS = () => {
   const processPayment = async () => {
     setLoading(true);
     try {
+      const totalAmount = getTotal();
       const saleData = {
         customer_id: selectedCustomer?.id || null,
         payment_method: paymentMethod,
-        amount_received: parseFloat(amountReceived),
+        total_amount: totalAmount,
+        final_amount: totalAmount,
         items: cart.map(item => ({
           product_id: item.id,
           quantity: item.quantity,
-          price: item.price
+          unit_price: item.price,
+          total_price: item.price * item.quantity
         }))
       };
 
       const response = await axios.post('/api/sales', saleData);
       
-      setCurrentReceipt(response.data.sale);
+      setCurrentReceipt(response.data);
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
       clearCart();
@@ -182,13 +185,15 @@ const POS = () => {
       // Refresh products to update stock
       fetchProducts();
     } catch (error) {
-      setError(error.response?.data?.message || 'Failed to process payment');
+      setError(error.response?.data?.error || 'Failed to process payment');
     } finally {
       setLoading(false);
     }
   };
 
   const printReceipt = () => {
+    if (!currentReceipt) return;
+    
     const receiptWindow = window.open('', '_blank');
     receiptWindow.document.write(`
       <html>
@@ -204,19 +209,21 @@ const POS = () => {
         <body>
           <div class="header">
             <h2>Edith's Store</h2>
-            <p>Receipt #${currentReceipt?.id}</p>
+            <p>Receipt #${currentReceipt.id}</p>
             <p>${new Date().toLocaleString()}</p>
           </div>
-          ${cart.map(item => `
+          ${currentReceipt.items.map(item => `
             <div class="item">
-              ${item.name} x${item.quantity} - ₱${(item.price * item.quantity).toFixed(2)}
+              ${item.product_name} x${item.quantity} - ₱${item.total_price.toFixed(2)}
             </div>
           `).join('')}
           <div class="total">
-            <h3>Total: ₱${getTotal().toFixed(2)}</h3>
-            <p>Payment Method: ${paymentMethod}</p>
-            <p>Amount Received: ₱${parseFloat(amountReceived).toFixed(2)}</p>
-            <p>Change: ₱${getChange().toFixed(2)}</p>
+            <h3>Total: ₱${currentReceipt.final_amount.toFixed(2)}</h3>
+            <p>Payment Method: ${currentReceipt.payment_method}</p>
+            ${paymentMethod !== 'credit' && amountReceived ? `
+              <p>Amount Received: ₱${parseFloat(amountReceived).toFixed(2)}</p>
+              <p>Change: ₱${getChange().toFixed(2)}</p>
+            ` : ''}
           </div>
         </body>
       </html>
@@ -491,15 +498,18 @@ const POS = () => {
             {new Date().toLocaleString()}
           </Typography>
           <Divider sx={{ my: 2 }} />
-          {cart.map((item) => (
+          {currentReceipt?.items?.map((item) => (
             <Box key={item.id} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography>{item.name} x{item.quantity}</Typography>
-              <Typography>₱{(item.price * item.quantity).toFixed(2)}</Typography>
+              <Typography>{item.product_name} x{item.quantity}</Typography>
+              <Typography>₱{item.total_price.toFixed(2)}</Typography>
             </Box>
           ))}
           <Divider sx={{ my: 2 }} />
           <Typography variant="h6">
-            Total: ₱{getTotal().toFixed(2)}
+            Total: ₱{currentReceipt?.final_amount?.toFixed(2)}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Payment Method: {currentReceipt?.payment_method}
           </Typography>
         </DialogContent>
         <DialogActions>
