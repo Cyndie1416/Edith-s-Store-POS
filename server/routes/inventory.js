@@ -37,7 +37,7 @@ router.get('/adjustments', (req, res) => {
   let query = `
     SELECT ia.*, p.name as product_name, u.full_name as adjusted_by_name
     FROM inventory_adjustments ia
-    JOIN products p ON ia.product_id = p.id
+    LEFT JOIN products p ON ia.product_id = p.id
     LEFT JOIN users u ON ia.adjusted_by = u.id
     WHERE 1=1
   `;

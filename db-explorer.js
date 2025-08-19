@@ -15,13 +15,13 @@ const db = new sqlite3.Database(dbPath, (err) => {
 
 // Check products table
 console.log('\n=== Checking Products Table ===');
-db.all('SELECT id, name, is_active, created_at FROM products ORDER BY id', (err, rows) => {
+db.all('SELECT id, name, barcode, price, stock_quantity, is_active FROM products ORDER BY id', (err, rows) => {
   if (err) {
     console.error('Error querying products:', err);
   } else {
     console.log('Total products in database:', rows.length);
     rows.forEach(row => {
-      console.log(`ID: ${row.id}, Name: ${row.name}, Active: ${row.is_active}, Created: ${row.created_at}`);
+      console.log(`ID: ${row.id}, Name: ${row.name}, Barcode: ${row.barcode || 'NULL'}, Price: ${row.price}, Stock: ${row.stock_quantity}, Active: ${row.is_active}`);
     });
   }
   

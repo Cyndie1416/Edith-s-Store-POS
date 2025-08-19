@@ -73,14 +73,31 @@ const POS = () => {
 
 
   useEffect(() => {
+    // Filter products based on stock levels
+    const inStockProducts = products.filter(product => 
+      product.stock_quantity > 0
+    );
+    
+    // Separate products by stock status
+    const normalStockProducts = inStockProducts.filter(product => 
+      product.stock_quantity > (product.min_stock_level || 5)
+    );
+    
+    const lowStockProducts = inStockProducts.filter(product => 
+      product.stock_quantity <= (product.min_stock_level || 5) && product.stock_quantity > 0
+    );
+    
+    // For POS, we'll show both normal and low stock products, but mark low stock ones
+    const availableProducts = [...normalStockProducts, ...lowStockProducts];
+    
     if (searchTerm) {
-      const filtered = products.filter(product =>
+      const filtered = availableProducts.filter(product =>
         product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.barcode?.includes(searchTerm)
       );
       setFilteredProducts(filtered);
     } else {
-      setFilteredProducts(products);
+      setFilteredProducts(availableProducts);
     }
   }, [searchTerm, products]);
 
@@ -103,6 +120,12 @@ const POS = () => {
   };
 
   const addToCart = (product) => {
+    // Check if product is in stock
+    if (product.stock_quantity <= 0) {
+      setError(`Cannot add "${product.name}" - out of stock (Stock: ${product.stock_quantity})`);
+      return;
+    }
+    
     const existingItem = cart.find(item => item.id === product.id);
     if (existingItem) {
       setCart(cart.map(item =>
@@ -114,13 +137,20 @@ const POS = () => {
       setCart([...cart, { ...product, quantity: 1 }]);
     }
     setSearchTerm('');
-    setFilteredProducts(products);
+    // Don't reset filtered products here - let the useEffect handle it
   };
 
   const updateQuantity = (productId, newQuantity) => {
     if (newQuantity <= 0) {
       removeFromCart(productId);
     } else {
+      // Find the product to check available stock
+      const product = products.find(p => p.id === productId);
+      if (product && newQuantity > product.stock_quantity) {
+        setError(`Cannot add ${newQuantity} items. Only ${product.stock_quantity} available in stock.`);
+        return;
+      }
+      
       setCart(cart.map(item =>
         item.id === productId
           ? { ...item, quantity: newQuantity }
@@ -324,6 +354,12 @@ const POS = () => {
       // Search for product with this barcode
       const product = products.find(p => p.barcode === barcode);
       if (product) {
+        // Check if product is in stock
+        if (product.stock_quantity <= 0) {
+          setError(`Product "${product.name}" is out of stock (Stock: ${product.stock_quantity})`);
+          setShowScanner(false);
+          return;
+        }
         addToCart(product);
         setSuccess(`Product found: ${product.name}`);
         setShowScanner(false);
@@ -348,6 +384,28 @@ const POS = () => {
             <Typography variant="h6" gutterBottom>
               {t('products')}
             </Typography>
+            
+            {/* Stock Status Summary */}
+            <Box sx={{ mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <Chip
+                label={`${filteredProducts.filter(p => p.stock_quantity > (p.min_stock_level || 5)).length} Normal Stock`}
+                color="success"
+                size="small"
+                variant="outlined"
+              />
+              <Chip
+                label={`${filteredProducts.filter(p => p.stock_quantity <= (p.min_stock_level || 5) && p.stock_quantity > 0).length} Low Stock`}
+                color="warning"
+                size="small"
+                variant="outlined"
+              />
+              <Chip
+                label={`${products.filter(p => p.stock_quantity <= 0).length} Out of Stock`}
+                color="error"
+                size="small"
+                variant="outlined"
+              />
+            </Box>
             
             {/* Customer Selection */}
             <Box sx={{ mb: 2 }}>
@@ -391,6 +449,12 @@ const POS = () => {
                     // Try to find product by barcode if it looks like a barcode
                     const product = products.find(p => p.barcode === searchTerm.trim());
                     if (product) {
+                      // Check if product is in stock
+                      if (product.stock_quantity <= 0) {
+                        setError(`Product "${product.name}" is out of stock (Stock: ${product.stock_quantity})`);
+                        setSearchTerm('');
+                        return;
+                      }
                       addToCart(product);
                       setSearchTerm('');
                       setSuccess(`Product added: ${product.name}`);
@@ -424,7 +488,12 @@ const POS = () => {
             {/* Product List */}
             <Box sx={{ flex: 1, overflow: 'auto' }}>
               <List>
-                {filteredProducts.map((product) => (
+                {filteredProducts.map((product) => {
+                  // Determine stock status
+                  const isLowStock = product.stock_quantity <= (product.min_stock_level || 5) && product.stock_quantity > 0;
+                  const isOutOfStock = product.stock_quantity <= 0;
+                  
+                  return (
                   <ListItem
                     key={product.id}
                     button
@@ -433,21 +502,43 @@ const POS = () => {
                       border: '1px solid #e0e0e0',
                       mb: 1,
                       borderRadius: 1,
-                      '&:hover': { backgroundColor: '#f5f5f5' }
+                        '&:hover': { backgroundColor: '#f5f5f5' },
+                        ...(isLowStock && {
+                          borderColor: '#ff9800',
+                          backgroundColor: '#fff3e0',
+                          '&:hover': { backgroundColor: '#ffe0b2' }
+                        })
                     }}
                   >
                     <ListItemText
-                      primary={product.name}
-                      secondary={`₱${product.price.toFixed(2)} | Stock: ${product.stock_quantity}`}
-                    />
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body1">
+                              {product.name}
+                            </Typography>
+                            {isLowStock && (
+                              <Chip
+                                label="LOW STOCK"
+                                size="small"
+                                color="warning"
+                                sx={{ fontSize: '0.7rem', height: '20px' }}
+                              />
+                            )}
+                          </Box>
+                        }
+                        secondary={`₱${product.price.toFixed(2)} | Stock: ${product.stock_quantity}${isLowStock ? ` (Min: ${product.min_stock_level || 5})` : ''}`}
+                      />
+                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                     <Chip
                       label={product.category_name}
                       size="small"
                       color="primary"
                       variant="outlined"
                     />
+                      </Box>
                   </ListItem>
-                ))}
+                  );
+                })}
               </List>
             </Box>
           </Paper>
@@ -488,11 +579,41 @@ const POS = () => {
                 </Typography>
               ) : (
                 <List>
-                  {cart.map((item) => (
-                    <ListItem key={item.id} sx={{ border: '1px solid #e0e0e0', mb: 1, borderRadius: 1 }}>
+                  {cart.map((item) => {
+                    // Find the current product to check stock status
+                    const currentProduct = products.find(p => p.id === item.id);
+                    const isLowStock = currentProduct && currentProduct.stock_quantity <= (currentProduct.min_stock_level || 5) && currentProduct.stock_quantity > 0;
+                    
+                    return (
+                      <ListItem 
+                        key={item.id} 
+                        sx={{ 
+                          border: '1px solid #e0e0e0', 
+                          mb: 1, 
+                          borderRadius: 1,
+                          ...(isLowStock && {
+                            borderColor: '#ff9800',
+                            backgroundColor: '#fff3e0'
+                          })
+                        }}
+                      >
                       <ListItemText
-                        primary={item.name}
-                        secondary={`₱${item.price.toFixed(2)} x ${item.quantity} = ₱${(item.price * item.quantity).toFixed(2)}`}
+                          primary={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body1">
+                                {item.name}
+                              </Typography>
+                              {isLowStock && (
+                                <Chip
+                                  label="LOW STOCK"
+                                  size="small"
+                                  color="warning"
+                                  sx={{ fontSize: '0.7rem', height: '20px' }}
+                                />
+                              )}
+                            </Box>
+                          }
+                          secondary={`₱${item.price.toFixed(2)} x ${item.quantity} = ₱${(item.price * item.quantity).toFixed(2)} | Available: ${currentProduct?.stock_quantity || 0}`}
                       />
                       <ListItemSecondaryAction>
                         <IconButton
@@ -516,7 +637,8 @@ const POS = () => {
                         </IconButton>
                       </ListItemSecondaryAction>
                     </ListItem>
-                  ))}
+                    );
+                  })}
                 </List>
               )}
             </Box>

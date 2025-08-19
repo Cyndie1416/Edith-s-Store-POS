@@ -109,6 +109,7 @@ const Products = () => {
   const [viewingProduct, setViewingProduct] = useState(null);
   const [adjustments, setAdjustments] = useState([]);
   const [outOfStockProducts, setOutOfStockProducts] = useState([]);
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
 
 
 
@@ -149,7 +150,7 @@ const Products = () => {
 
   useEffect(() => {
     const outOfStock = products.filter(product => 
-      product.stock_quantity === 0
+      product.stock_quantity <= 0
     );
     setOutOfStockProducts(outOfStock);
   }, [products]);
@@ -175,6 +176,7 @@ const Products = () => {
       console.log('Fetching products with params:', params.toString());
       const response = await axios.get(`/api/products?${params}`);
       console.log('Fetched products:', response.data.products?.length || 0, 'products');
+
       setProducts(response.data.products || []);
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -211,6 +213,7 @@ const Products = () => {
   const fetchAdjustments = async () => {
     try {
       const response = await axios.get('/api/inventory/adjustments');
+
       setAdjustments(response.data.adjustments || []);
     } catch (error) {
       console.error('Failed to load adjustments:', error);
@@ -483,8 +486,13 @@ const Products = () => {
 
 
 
+  // Updated stock level calculations
   const lowStockProducts = products.filter(product => 
-    product.stock_quantity <= (product.min_stock_level || 5)
+    product.stock_quantity <= (product.min_stock_level || 5) && product.stock_quantity > 0
+  );
+
+  const normalStockProducts = products.filter(product => 
+    product.stock_quantity > (product.min_stock_level || 5)
   );
 
 
@@ -525,57 +533,76 @@ const Products = () => {
       field: 'barcode', 
       headerName: 'Barcode', 
       width: 150,
-      valueFormatter: (params) => {
-        if (!params || params.value === undefined || params.value === null) return 'N/A';
-        return params.value;
-      }
+             renderCell: (params) => {
+         const barcode = params.row?.barcode || params.value;
+         return barcode || 'N/A';
+       }
     },
     { 
       field: 'category_name', 
       headerName: 'Category', 
       width: 120,
-      valueFormatter: (params) => {
-        if (!params || params.value === undefined || params.value === null) return 'No Category';
-        return params.value;
+      renderCell: (params) => {
+        const categoryName = params.row?.category_name || params.value;
+        return categoryName || 'No Category';
       }
     },
     { 
       field: 'price', 
       headerName: 'Price', 
       width: 100,
-      valueFormatter: (params) => {
-        if (!params || params.value === undefined || params.value === null) return '₱0.00';
-        return `₱${parseFloat(params.value).toFixed(2)}`;
+      renderCell: (params) => {
+        const price = params.row?.price || params.value;
+        if (!price || price === 0) return '₱0.00';
+        return `₱${parseFloat(price).toFixed(2)}`;
       }
     },
     { 
       field: 'cost_price', 
       headerName: 'Cost', 
       width: 100,
-      valueFormatter: (params) => {
-        if (!params || params.value === undefined || params.value === null) return '₱0.00';
-        return `₱${parseFloat(params.value).toFixed(2)}`;
+      renderCell: (params) => {
+        const costPrice = params.row?.cost_price || params.value;
+        if (!costPrice || costPrice === 0) return '₱0.00';
+        return `₱${parseFloat(costPrice).toFixed(2)}`;
       }
     },
     { 
       field: 'stock_quantity', 
       headerName: 'Stock', 
-      width: 100,
-      renderCell: (params) => (
-        <Chip
-          label={!params || params.value === undefined || params.value === null ? 0 : params.value}
-          color={(!params || params.value === undefined || params.value === null ? 0 : params.value) <= (!params || !params.row || params.row.min_stock_level === undefined || params.row.min_stock_level === null ? 5 : params.row.min_stock_level) ? 'error' : 'success'}
-          size="small"
-        />
-      )
+      width: 120,
+      renderCell: (params) => {
+        const stockQuantity = !params || params.value === undefined || params.value === null ? 0 : params.value;
+        const minStockLevel = !params || !params.row || params.row.min_stock_level === undefined || params.row.min_stock_level === null ? 5 : params.row.min_stock_level;
+        
+        // Determine stock status
+        let color = 'success';
+        let label = stockQuantity;
+        
+        if (stockQuantity <= 0) {
+          color = 'error';
+          label = `${stockQuantity} (OUT OF STOCK)`;
+        } else if (stockQuantity <= minStockLevel) {
+          color = 'warning';
+          label = `${stockQuantity} (LOW STOCK)`;
+        }
+        
+        return (
+          <Chip
+            label={label}
+            color={color}
+            size="small"
+          />
+        );
+      }
     },
     { 
       field: 'unit', 
       headerName: 'Unit', 
       width: 80,
-      valueFormatter: (params) => {
-        if (!params || params.value === undefined || params.value === null) return 'piece';
-        return params.value;
+      renderCell: (params) => {
+        const unit = params.row?.unit || params.value;
+        return unit || 'piece';
       }
     },
     { 
@@ -625,7 +652,7 @@ const Products = () => {
 
       {/* Statistics Cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={2}>
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
@@ -637,7 +664,19 @@ const Products = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={2}>
+          <Card>
+            <CardContent>
+              <Typography color="textSecondary" gutterBottom>
+                Normal Stock
+              </Typography>
+              <Typography variant="h4" color="success.main">
+                {normalStockProducts.length}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={2}>
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
@@ -649,7 +688,7 @@ const Products = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={2}>
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
@@ -661,7 +700,7 @@ const Products = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={4}>
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
@@ -1095,9 +1134,9 @@ const Products = () => {
                     field: 'product_name', 
                     headerName: 'Product', 
                     width: 200,
-                    valueFormatter: (params) => {
-                      if (!params || params.value === undefined || params.value === null) return 'Unknown Product';
-                      return params.value;
+                    renderCell: (params) => {
+                      const productName = params.row?.product_name || params.value;
+                      return productName || 'Deleted Product';
                     }
                   },
                   { 
@@ -1120,27 +1159,28 @@ const Products = () => {
                     field: 'quantity', 
                     headerName: 'Quantity', 
                     width: 100,
-                    valueFormatter: (params) => {
-                      if (!params || params.value === undefined || params.value === null) return 0;
-                      return params.value;
+                    renderCell: (params) => {
+                      const quantity = params.row?.quantity || params.value;
+                      return quantity || 0;
                     }
                   },
                   { 
                     field: 'reason', 
                     headerName: 'Reason', 
                     width: 200,
-                    valueFormatter: (params) => {
-                      if (!params || params.value === undefined || params.value === null) return 'No reason provided';
-                      return params.value;
+                    renderCell: (params) => {
+                      const reason = params.row?.reason || params.value;
+                      return reason || 'No reason provided';
                     }
                   },
                   { 
                     field: 'created_at', 
                     headerName: 'Date', 
                     width: 150,
-                    valueFormatter: (params) => {
-                      if (!params || params.value === undefined || params.value === null) return 'N/A';
-                      return new Date(params.value).toLocaleDateString();
+                    renderCell: (params) => {
+                      const date = params.row?.created_at || params.value;
+                      if (!date) return 'N/A';
+                      return new Date(date).toLocaleDateString();
                     }
                   }
                 ]}
@@ -1245,7 +1285,7 @@ const Products = () => {
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 <FormControl fullWidth>
                   <InputLabel>Category</InputLabel>
                   <Select
@@ -1266,49 +1306,26 @@ const Products = () => {
                     {categoriesLoading ? (
                       <MenuItem disabled>Loading categories...</MenuItem>
                     ) : (
-                      <>
-                        {memoizedCategories.map((category) => (
-                          <MenuItem key={category.id} value={category.id}>
-                            {category.name}
-                          </MenuItem>
-                        ))}
-                        <Divider />
-                        <MenuItem 
-                          value=""
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setFormData({ ...formData, category_id: '' });
-                            handleOpenCategoryDialog();
-                          }}
-                          sx={{ 
-                            color: 'primary.main',
-                            fontStyle: 'italic',
-                            '&:hover': { backgroundColor: 'primary.light', color: 'white' }
-                          }}
-                        >
-                          + Add New Category
+                      memoizedCategories.map((category) => (
+                        <MenuItem key={category.id} value={category.id}>
+                          {category.name}
                         </MenuItem>
-                      </>
+                      ))
                     )}
                   </Select>
                 </FormControl>
-                <Tooltip title="Add New Category">
-                  <IconButton
-                    onClick={() => handleOpenCategoryDialog()}
-                    sx={{ 
-                      border: '1px solid',
-                      borderColor: 'primary.main',
-                      color: 'primary.main',
-                      '&:hover': { 
-                        backgroundColor: 'primary.main',
-                        color: 'white'
-                      }
-                    }}
-                  >
-                    <Add />
-                  </IconButton>
-                </Tooltip>
+                <Button
+                  size="small"
+                  startIcon={<Add />}
+                  onClick={() => handleOpenCategoryDialog()}
+                  sx={{ 
+                    alignSelf: 'flex-start',
+                    color: 'primary.main',
+                    '&:hover': { backgroundColor: 'primary.light', color: 'white' }
+                  }}
+                >
+                  Add New Category
+                </Button>
               </Box>
             </Grid>
             <Grid item xs={12} md={3}>
