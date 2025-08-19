@@ -103,6 +103,8 @@ async function initializeDatabase() {
           final_amount DECIMAL(10,2) NOT NULL,
           payment_method TEXT NOT NULL,
           payment_status TEXT DEFAULT 'completed',
+          amount_received DECIMAL(10,2) DEFAULT 0,
+          remaining_balance DECIMAL(10,2) DEFAULT 0,
           cashier_id INTEGER,
           notes TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -110,6 +112,19 @@ async function initializeDatabase() {
           FOREIGN KEY (cashier_id) REFERENCES users (id)
         )
       `);
+      
+      // Try to add new columns if they don't exist
+      db.run(`ALTER TABLE sales ADD COLUMN amount_received DECIMAL(10,2) DEFAULT 0`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) {
+          console.warn('Warning: Could not add amount_received column:', err.message);
+        }
+      });
+      
+      db.run(`ALTER TABLE sales ADD COLUMN remaining_balance DECIMAL(10,2) DEFAULT 0`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) {
+          console.warn('Warning: Could not add remaining_balance column:', err.message);
+        }
+      });
 
       // Sale items table
       db.run(`

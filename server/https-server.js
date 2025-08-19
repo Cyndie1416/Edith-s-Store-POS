@@ -3,7 +3,12 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const https = require('https');
+const fs = require('fs');
 require('dotenv').config();
+
+// Import certificate generator
+const { generateCertificate } = require('./https-setup');
 
 // Import routes
 const productsRouter = require('./routes/products');
@@ -21,9 +26,7 @@ const { initializeDatabase } = require('./models/database');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
-// Trust proxy for rate limiting
-app.set('trust proxy', 1);
+const HTTPS_PORT = process.env.HTTPS_PORT || 5001;
 
 // Security middleware
 app.use(helmet({
@@ -46,9 +49,46 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// CORS configuration for local network access
+// CORS configuration for HTTPS
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? ['https://yourdomain.com'] 
+  : [
+      'http://localhost:3000',
+      'https://localhost:3000',
+      'http://127.0.0.1:3000',
+      'https://127.0.0.1:3000',
+      // Common local network IP ranges
+      /^https:\/\/192\.168\.\d{1,3}\.\d{1,3}:3000$/,
+      /^https:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}:3000$/,
+      /^https:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}:3000$/
+    ];
+
 app.use(cors({
-  origin: true, // Allow all origins in development
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (process.env.NODE_ENV === 'production') {
+      // In production, only allow specific domains
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+    } else {
+      // In development, allow localhost and local network IPs
+      if (allowedOrigins.some(allowed => {
+        if (typeof allowed === 'string') {
+          return allowed === origin;
+        } else if (allowed instanceof RegExp) {
+          return allowed.test(origin);
+        }
+        return false;
+      })) {
+        return callback(null, true);
+      }
+    }
+    
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 
@@ -76,9 +116,10 @@ app.use('/api/notifications', notificationsRouter);
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
-    message: 'Edith\'s Store POS API is running',
+    message: 'Edith\'s Store POS API is running (HTTPS)',
     timestamp: new Date().toISOString(),
-    version: '1.0.0'
+    version: '1.0.0',
+    protocol: 'HTTPS'
   });
 });
 
@@ -103,24 +144,40 @@ app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Initialize database and start server
-async function startServer() {
+// Initialize database and start HTTPS server
+async function startHTTPSServer() {
   try {
     await initializeDatabase();
     console.log('✅ Database initialized successfully');
     
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Edith's Store POS Server running on port ${PORT}`);
-      console.log(`📊 API available at http://localhost:${PORT}/api`);
-      console.log(`🌐 Network access: http://YOUR_IP_ADDRESS:${PORT}/api`);
-      console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
+    // Generate SSL certificate
+    const certs = generateCertificate();
+    if (!certs) {
+      console.error('❌ Failed to generate SSL certificate');
+      process.exit(1);
+    }
+    
+    // Create HTTPS server
+    const httpsServer = https.createServer({
+      key: fs.readFileSync(certs.keyPath),
+      cert: fs.readFileSync(certs.certPath)
+    }, app);
+    
+    httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
+      console.log(`🔒 Edith's Store POS HTTPS Server running on port ${HTTPS_PORT}`);
+      console.log(`📊 API available at https://localhost:${HTTPS_PORT}/api`);
+      console.log(`🌐 Network access: https://YOUR_IP_ADDRESS:${HTTPS_PORT}/api`);
+      console.log(`🏥 Health check: https://localhost:${HTTPS_PORT}/api/health`);
+      console.log('');
+      console.log('⚠️  Note: You may see a security warning in your browser.');
+      console.log('   Click "Advanced" and "Proceed to localhost (unsafe)" to continue.');
     });
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    console.error('❌ Failed to start HTTPS server:', error);
     process.exit(1);
   }
 }
 
-startServer();
+startHTTPSServer();
 
 module.exports = app;

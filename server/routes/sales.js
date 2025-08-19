@@ -160,6 +160,8 @@ router.post('/', (req, res) => {
     final_amount,
     payment_method,
     payment_status = 'completed',
+    amount_received = 0,
+    remaining_balance = 0,
     cashier_id = 1, // Default to admin for now
     notes
   } = req.body;
@@ -184,8 +186,8 @@ router.post('/', (req, res) => {
     const saleQuery = `
       INSERT INTO sales (
         sale_number, customer_id, total_amount, tax_amount, discount_amount,
-        final_amount, payment_method, payment_status, cashier_id, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        final_amount, payment_method, payment_status, amount_received, remaining_balance, cashier_id, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     
     const saleParams = [
@@ -197,6 +199,8 @@ router.post('/', (req, res) => {
       parseFloat(final_amount),
       payment_method,
       payment_status,
+      parseFloat(amount_received),
+      parseFloat(remaining_balance),
       cashier_id,
       notes || null
     ];
@@ -251,44 +255,50 @@ router.post('/', (req, res) => {
             // If all items processed, commit transaction
             if (processedItems === items.length && !hasError) {
               // Handle credit transaction if customer has credit
-              if (customer_id && payment_method === 'credit') {
-                const creditQuery = `
-                  INSERT INTO credit_transactions (
-                    customer_id, transaction_type, amount, description, reference_id, reference_type
-                  ) VALUES (?, ?, ?, ?, ?, ?)
-                `;
+              if (customer_id && (payment_method === 'credit' || payment_method === 'partial')) {
+                const creditAmount = payment_method === 'credit' ? final_amount : remaining_balance;
                 
-                db.run(creditQuery, [
-                  customer_id,
-                  'debit',
-                  final_amount,
-                  `Sale ${saleNumber}`,
-                  saleId,
-                  'sale'
-                ], function(err) {
-                  if (err) {
-                    db.run('ROLLBACK');
-                    console.error('Error creating credit transaction:', err);
-                    return res.status(500).json({ error: 'Failed to create credit transaction' });
-                  }
-                  
-                  // Update customer balance
-                  const balanceQuery = `
-                    UPDATE customers 
-                    SET current_balance = current_balance + ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
+                if (creditAmount > 0) {
+                  const creditQuery = `
+                    INSERT INTO credit_transactions (
+                      customer_id, transaction_type, amount, description, reference_id, reference_type
+                    ) VALUES (?, ?, ?, ?, ?, ?)
                   `;
                   
-                  db.run(balanceQuery, [final_amount, customer_id], function(err) {
+                  db.run(creditQuery, [
+                    customer_id,
+                    'debit',
+                    creditAmount,
+                    payment_method === 'partial' ? `Partial Sale ${saleNumber} (Remaining: ₱${creditAmount})` : `Sale ${saleNumber}`,
+                    saleId,
+                    'sale'
+                  ], function(err) {
                     if (err) {
                       db.run('ROLLBACK');
-                      console.error('Error updating customer balance:', err);
-                      return res.status(500).json({ error: 'Failed to update customer balance' });
+                      console.error('Error creating credit transaction:', err);
+                      return res.status(500).json({ error: 'Failed to create credit transaction' });
                     }
                     
-                    commitSale();
+                    // Update customer balance
+                    const balanceQuery = `
+                      UPDATE customers 
+                      SET current_balance = current_balance + ?, updated_at = CURRENT_TIMESTAMP
+                      WHERE id = ?
+                    `;
+                    
+                    db.run(balanceQuery, [creditAmount, customer_id], function(err) {
+                      if (err) {
+                        db.run('ROLLBACK');
+                        console.error('Error updating customer balance:', err);
+                        return res.status(500).json({ error: 'Failed to update customer balance' });
+                      }
+                      
+                      commitSale();
+                    });
                   });
-                });
+                } else {
+                  commitSale();
+                }
               } else {
                 commitSale();
               }
