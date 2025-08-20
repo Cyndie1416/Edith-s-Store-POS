@@ -150,9 +150,7 @@ const Reports = () => {
   const processCustomerData = (customers) => {
     return customers.map(customer => ({
       name: customer.name,
-      balance: parseFloat(customer.current_balance),
-      limit: parseFloat(customer.credit_limit),
-      available: parseFloat(customer.credit_limit) - parseFloat(customer.current_balance)
+      balance: parseFloat(customer.current_balance)
     }));
   };
 

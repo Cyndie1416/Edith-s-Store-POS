@@ -83,7 +83,7 @@ async function initializeDatabase() {
           phone TEXT,
           email TEXT,
           address TEXT,
-          credit_limit DECIMAL(10,2) DEFAULT 0,
+
           current_balance DECIMAL(10,2) DEFAULT 0,
           is_active BOOLEAN DEFAULT 1,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -156,6 +156,29 @@ async function initializeDatabase() {
         )
       `);
 
+      // Borrowed items table
+      db.run(`
+        CREATE TABLE IF NOT EXISTS borrowed_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          customer_id INTEGER NOT NULL,
+          product_id INTEGER NOT NULL,
+          quantity INTEGER NOT NULL,
+          borrow_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+          expected_return_date DATETIME,
+          actual_return_date DATETIME,
+          status TEXT DEFAULT 'borrowed',
+          notes TEXT,
+          borrowed_by INTEGER,
+          returned_to INTEGER,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (customer_id) REFERENCES customers (id),
+          FOREIGN KEY (product_id) REFERENCES products (id),
+          FOREIGN KEY (borrowed_by) REFERENCES users (id),
+          FOREIGN KEY (returned_to) REFERENCES users (id)
+        )
+      `);
+
       // Inventory adjustments table
       db.run(`
         CREATE TABLE IF NOT EXISTS inventory_adjustments (
@@ -219,6 +242,10 @@ async function initializeDatabase() {
       db.run('CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type)');
       db.run('CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read_status)');
       db.run('CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at)');
+      db.run('CREATE INDEX IF NOT EXISTS idx_borrowed_items_customer ON borrowed_items(customer_id)');
+      db.run('CREATE INDEX IF NOT EXISTS idx_borrowed_items_product ON borrowed_items(product_id)');
+      db.run('CREATE INDEX IF NOT EXISTS idx_borrowed_items_status ON borrowed_items(status)');
+      db.run('CREATE INDEX IF NOT EXISTS idx_borrowed_items_date ON borrowed_items(borrow_date)');
 
       // Insert default admin user
       await insertDefaultAdmin();
@@ -331,15 +358,15 @@ function insertSampleProducts() {
 function insertSampleCustomers() {
   return new Promise((resolve, reject) => {
     const customers = [
-      ['John Doe', '+639123456789', 'john@email.com', '123 Main St, City', 1000.00, 0.00],
-      ['Jane Smith', '+639987654321', 'jane@email.com', '456 Oak Ave, Town', 500.00, 0.00],
-      ['Mike Johnson', '+639555123456', 'mike@email.com', '789 Pine Rd, Village', 750.00, 0.00]
+      ['John Doe', '+639123456789', 'john@email.com', '123 Main St, City', 0.00],
+      ['Jane Smith', '+639987654321', 'jane@email.com', '456 Oak Ave, Town', 0.00],
+      ['Mike Johnson', '+639555123456', 'mike@email.com', '789 Pine Rd, Village', 0.00]
     ];
 
     const stmt = db.prepare(`
       INSERT OR IGNORE INTO customers 
-      (name, phone, email, address, credit_limit, current_balance)
-      VALUES (?, ?, ?, ?, ?, ?)
+      (name, phone, email, address, current_balance)
+      VALUES (?, ?, ?, ?, ?)
     `);
     
     customers.forEach(customer => stmt.run(customer));

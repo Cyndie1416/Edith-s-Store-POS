@@ -201,12 +201,7 @@ const POS = () => {
           return;
         }
         
-        // Check if customer has available credit
-        const availableCredit = (selectedCustomer.credit_limit || 0) - (selectedCustomer.current_balance || 0);
-        if (totalAmount > availableCredit) {
-          setError(`Insufficient credit. Available: ₱${availableCredit.toFixed(2)}, Required: ₱${totalAmount.toFixed(2)}`);
-          return;
-        }
+        // Credit limit validation removed - allow unlimited credit
       }
 
       // Validate partial payment
@@ -221,12 +216,7 @@ const POS = () => {
           return;
         }
         
-        // Check if customer has available credit for remaining balance
-        const availableCredit = (selectedCustomer.credit_limit || 0) - (selectedCustomer.current_balance || 0);
-        if (remainingBalance > availableCredit) {
-          setError(`Insufficient credit for remaining balance. Available: ₱${availableCredit.toFixed(2)}, Required: ₱${remainingBalance.toFixed(2)}`);
-          return;
-        }
+        // Credit limit validation removed - allow unlimited credit for remaining balance
       }
 
       const saleData = {
@@ -431,8 +421,7 @@ const POS = () => {
               </FormControl>
               {selectedCustomer && (
                 <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                  Credit Limit: ₱{selectedCustomer.credit_limit?.toFixed(2) || '0.00'} | 
-                  Available: ₱{((selectedCustomer.credit_limit || 0) - (selectedCustomer.current_balance || 0)).toFixed(2)}
+                  Current Balance: ₱{selectedCustomer.current_balance?.toFixed(2) || '0.00'}
                 </Typography>
               )}
             </Box>
@@ -715,9 +704,7 @@ const POS = () => {
               </Select>
               {selectedCustomer && (
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  Credit Limit: ₱{selectedCustomer.credit_limit?.toFixed(2) || '0.00'} | 
-                  Current Balance: ₱{selectedCustomer.current_balance?.toFixed(2) || '0.00'} | 
-                  Available Credit: ₱{((selectedCustomer.credit_limit || 0) - (selectedCustomer.current_balance || 0)).toFixed(2)}
+                  Current Balance: ₱{selectedCustomer.current_balance?.toFixed(2) || '0.00'}
                 </Typography>
               )}
             </FormControl>

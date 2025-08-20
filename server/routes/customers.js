@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getDatabase } = require('../models/database');
+const smsService = require('../utils/smsService');
 
 // Get all customers with optional filtering
 router.get('/', (req, res) => {
@@ -120,8 +121,7 @@ router.post('/', (req, res) => {
     name,
     phone,
     email,
-    address,
-    credit_limit = 0
+    address
   } = req.body;
   
   // Validation
@@ -130,16 +130,15 @@ router.post('/', (req, res) => {
   }
   
   const query = `
-    INSERT INTO customers (name, phone, email, address, credit_limit)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO customers (name, phone, email, address)
+    VALUES (?, ?, ?, ?)
   `;
   
   const params = [
     name,
     phone || null,
     email || null,
-    address || null,
-    parseFloat(credit_limit)
+    address || null
   ];
   
   db.run(query, params, function(err) {
@@ -171,8 +170,7 @@ router.put('/:id', (req, res) => {
     name,
     phone,
     email,
-    address,
-    credit_limit
+    address
   } = req.body;
   
   // Check if customer exists
@@ -189,7 +187,7 @@ router.put('/:id', (req, res) => {
     const query = `
       UPDATE customers SET 
         name = ?, phone = ?, email = ?, address = ?, 
-        credit_limit = ?, updated_at = CURRENT_TIMESTAMP
+        updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `;
     
@@ -198,7 +196,6 @@ router.put('/:id', (req, res) => {
       phone !== undefined ? phone : customer.phone,
       email !== undefined ? email : customer.email,
       address !== undefined ? address : customer.address,
-      credit_limit !== undefined ? parseFloat(credit_limit) : customer.credit_limit,
       id
     ];
     
@@ -450,5 +447,231 @@ router.get('/summary/credit', (req, res) => {
     res.json(summary);
   });
 });
+
+// Get customer credit history
+router.get('/:id/credit-history', (req, res) => {
+  const db = getDatabase();
+  const { id } = req.params;
+  
+  // Check if customer exists
+  db.get('SELECT * FROM customers WHERE id = ?', [id], (err, customer) => {
+    if (err) {
+      console.error('Error checking customer:', err);
+      return res.status(500).json({ error: 'Failed to check customer' });
+    }
+    
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    const query = `
+      SELECT 
+        ct.*,
+        ct.amount,
+        ct.description,
+        ct.created_at,
+        CASE 
+          WHEN ct.transaction_type = 'credit' THEN ct.amount
+          WHEN ct.transaction_type = 'payment' THEN -ct.amount
+          ELSE 0
+        END as balance_change
+      FROM credit_transactions ct
+      WHERE ct.customer_id = ?
+      ORDER BY ct.created_at DESC
+    `;
+    
+    db.all(query, [id], (err, transactions) => {
+      if (err) {
+        console.error('Error fetching credit history:', err);
+        return res.status(500).json({ error: 'Failed to fetch credit history' });
+      }
+      
+             // Return transactions without balance calculation
+       const transactionsWithBalance = transactions;
+      
+      res.json({ transactions: transactionsWithBalance });
+    });
+  });
+});
+
+// Add credit transaction (simplified version for frontend)
+router.post('/credit-transaction', (req, res) => {
+  const db = getDatabase();
+  const {
+    customer_id,
+    type,
+    amount,
+    description
+  } = req.body;
+  
+  // Validation
+  if (!customer_id || !type || !amount || !description) {
+    return res.status(400).json({ error: 'Customer ID, type, amount, and description are required' });
+  }
+  
+  if (!['add', 'deduct'].includes(type)) {
+    return res.status(400).json({ error: 'Invalid transaction type. Use "add" or "deduct"' });
+  }
+  
+  // Start transaction
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
+    
+    // Check if customer exists
+    db.get('SELECT * FROM customers WHERE id = ?', [customer_id], (err, customer) => {
+      if (err) {
+        db.run('ROLLBACK');
+        console.error('Error checking customer:', err);
+        return res.status(500).json({ error: 'Failed to check customer' });
+      }
+      
+      if (!customer) {
+        db.run('ROLLBACK');
+        return res.status(404).json({ error: 'Customer not found' });
+      }
+      
+      // Map frontend types to database types
+      const transactionType = type === 'add' ? 'credit' : 'payment';
+      
+      // Insert credit transaction
+      const transactionQuery = `
+        INSERT INTO credit_transactions (
+          customer_id, transaction_type, amount, description
+        ) VALUES (?, ?, ?, ?)
+      `;
+      
+      const transactionParams = [
+        customer_id,
+        transactionType,
+        parseFloat(amount),
+        description
+      ];
+      
+      db.run(transactionQuery, transactionParams, function(err) {
+        if (err) {
+          db.run('ROLLBACK');
+          console.error('Error creating transaction:', err);
+          return res.status(500).json({ error: 'Failed to create transaction' });
+        }
+        
+        // Update customer balance
+        let balanceChange = 0;
+        if (type === 'add') {
+          balanceChange = parseFloat(amount);
+        } else if (type === 'deduct') {
+          balanceChange = -parseFloat(amount);
+        }
+        
+        const balanceQuery = `
+          UPDATE customers 
+          SET current_balance = current_balance + ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `;
+        
+        db.run(balanceQuery, [balanceChange, customer_id], function(err) {
+          if (err) {
+            db.run('ROLLBACK');
+            console.error('Error updating customer balance:', err);
+            return res.status(500).json({ error: 'Failed to update customer balance' });
+          }
+          
+          db.run('COMMIT');
+          
+          // Get updated customer
+          db.get('SELECT * FROM customers WHERE id = ?', [customer_id], (err, updatedCustomer) => {
+            if (err) {
+              console.error('Error fetching updated customer:', err);
+              return res.status(500).json({ error: 'Transaction created but failed to fetch customer' });
+            }
+            
+            res.status(201).json({
+              message: 'Credit transaction processed successfully',
+              customer: updatedCustomer
+            });
+          });
+        });
+      });
+    });
+  });
+});
+
+// Send SMS notification for credit balance
+router.post('/:id/send-sms', (req, res) => {
+  const db = getDatabase();
+  const { id } = req.params;
+  const { message } = req.body;
+  
+  // Check if customer exists and has phone number
+  db.get('SELECT * FROM customers WHERE id = ? AND is_active = 1', [id], (err, customer) => {
+    if (err) {
+      console.error('Error checking customer:', err);
+      return res.status(500).json({ error: 'Failed to check customer' });
+    }
+    
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    if (!customer.phone) {
+      return res.status(400).json({ error: 'Customer does not have a phone number' });
+    }
+    
+    // Get recent credit transactions for the message
+    const transactionQuery = `
+      SELECT * FROM credit_transactions 
+      WHERE customer_id = ? 
+      ORDER BY created_at DESC 
+      LIMIT 5
+    `;
+    
+    db.all(transactionQuery, [id], (err, transactions) => {
+      if (err) {
+        console.error('Error fetching transactions:', err);
+        return res.status(500).json({ error: 'Failed to fetch transactions' });
+      }
+      
+      // Generate SMS message
+      const defaultMessage = generateCreditBalanceSMS(customer, transactions);
+      const finalMessage = message || defaultMessage;
+      
+      // Send SMS using the SMS service
+      smsService.sendSMS(customer.phone, finalMessage)
+        .then((result) => {
+          res.json({ 
+            message: 'SMS sent successfully',
+            phone: customer.phone,
+            messageContent: finalMessage,
+            service: result.service,
+            simulated: result.simulated
+          });
+        })
+        .catch(error => {
+          console.error('Error sending SMS:', error);
+          res.status(500).json({ error: 'Failed to send SMS' });
+        });
+    });
+  });
+});
+
+// Helper function to generate SMS message
+function generateCreditBalanceSMS(customer, transactions) {
+  const balance = parseFloat(customer.current_balance || 0).toFixed(2);
+  let message = `Hi ${customer.name},\n\nYour current credit balance is ₱${balance}.\n\n`;
+  
+  if (transactions.length > 0) {
+    message += 'Recent transactions:\n';
+    transactions.slice(0, 3).forEach(transaction => {
+      const date = new Date(transaction.created_at).toLocaleDateString();
+      const amount = parseFloat(transaction.amount).toFixed(2);
+      const type = ['credit', 'debit'].includes(transaction.transaction_type) ? 'Added' : 'Deducted';
+      message += `${date}: ${type} ₱${amount}\n`;
+    });
+  }
+  
+  message += '\nThank you for your business!\nEdith\'s Store';
+  return message;
+}
+
+
 
 module.exports = router;

@@ -551,4 +551,64 @@ router.get('/summary/range', (req, res) => {
   });
 });
 
+// Get sale receipt details
+router.get('/:id/receipt', (req, res) => {
+  const db = getDatabase();
+  const { id } = req.params;
+  
+  // Get sale details
+  const saleQuery = `
+    SELECT s.*, c.name as customer_name, u.full_name as cashier_name
+    FROM sales s 
+    LEFT JOIN customers c ON s.customer_id = c.id
+    LEFT JOIN users u ON s.cashier_id = u.id
+    WHERE s.id = ?
+  `;
+  
+  db.get(saleQuery, [id], (err, sale) => {
+    if (err) {
+      console.error('Error fetching sale:', err);
+      return res.status(500).json({ error: 'Failed to fetch sale' });
+    }
+    
+    if (!sale) {
+      return res.status(404).json({ error: 'Sale not found' });
+    }
+    
+    // Get sale items
+    const itemsQuery = `
+      SELECT si.*, p.name as product_name, p.barcode
+      FROM sale_items si
+      LEFT JOIN products p ON si.product_id = p.id
+      WHERE si.sale_id = ?
+    `;
+    
+    db.all(itemsQuery, [id], (err, items) => {
+      if (err) {
+        console.error('Error fetching sale items:', err);
+        return res.status(500).json({ error: 'Failed to fetch sale items' });
+      }
+      
+      // Get receipt details if exists
+      const receiptQuery = `
+        SELECT * FROM receipts WHERE sale_id = ?
+      `;
+      
+      db.get(receiptQuery, [id], (err, receipt) => {
+        if (err) {
+          console.error('Error fetching receipt:', err);
+          return res.status(500).json({ error: 'Failed to fetch receipt' });
+        }
+        
+        res.json({
+          ...sale,
+          items,
+          receipt_number: receipt ? receipt.receipt_number : sale.sale_number,
+          receipt_type: receipt ? receipt.receipt_type : 'print'
+        });
+      });
+    });
+  });
+});
+
 module.exports = router;

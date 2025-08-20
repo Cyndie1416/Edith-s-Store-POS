@@ -58,10 +58,8 @@ export const exportCustomersToExcel = (customersData, filename = 'customers_repo
     'Phone': customer.phone || 'N/A',
     'Email': customer.email || 'N/A',
     'Address': customer.address || 'N/A',
-    'Credit Limit': customer.credit_limit,
     'Current Balance': customer.current_balance,
-    'Available Credit': customer.credit_limit - customer.current_balance,
-    'Status': customer.current_balance > customer.credit_limit ? 'Over Limit' : 'Active',
+    'Status': customer.current_balance > 0 ? 'Has Credit' : 'No Credit',
     'Date Added': new Date(customer.created_at).toLocaleDateString()
   })));
 
@@ -107,8 +105,7 @@ export const exportComprehensiveReport = (data, filename = 'comprehensive_report
     const customerWorksheet = XLSX.utils.json_to_sheet(data.customers.map(customer => ({
       'Customer': customer.name,
       'Phone': customer.phone || 'N/A',
-      'Credit Balance': customer.current_balance,
-      'Credit Limit': customer.credit_limit
+      'Credit Balance': customer.current_balance
     })));
     XLSX.utils.book_append_sheet(workbook, customerWorksheet, 'Customer Summary');
   }
