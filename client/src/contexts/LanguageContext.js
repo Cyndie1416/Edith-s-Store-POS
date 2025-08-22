@@ -37,9 +37,9 @@ const translations = {
     close: 'Close',
     
     // Dashboard
-    todaysSales: "Today's Sales",
+    todaysProfit: "Today's Profit",
     todaysRevenue: "Today's Revenue",
-    totalProducts: 'Total Products',
+    todaysProductsSold: "Today's Total Products Sold",
     lowStockItems: 'Low Stock Items',
     recentSales: 'Recent Sales',
     quickActions: 'Quick Actions',
@@ -158,9 +158,9 @@ const translations = {
     close: 'Isara',
     
     // Dashboard
-    todaysSales: 'Mga Benta Ngayon',
+    todaysProfit: 'Kita Ngayon',
     todaysRevenue: 'Kita Ngayon',
-    totalProducts: 'Kabuuang Produkto',
+    todaysProductsSold: 'Kabuuang Produktong Nabenta Ngayon',
     lowStockItems: 'Mababang Stock',
     recentSales: 'Mga Kamakailang Benta',
     quickActions: 'Mabilisang Aksyon',

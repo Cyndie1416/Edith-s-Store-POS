@@ -395,7 +395,7 @@ const Reports = () => {
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
                   <Typography color="textSecondary" gutterBottom variant="h6">
-                    {t('todaysSales')}
+                    {t('todaysProfit')}
                   </Typography>
                   <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
                     {getTotalSales()}
@@ -449,7 +449,7 @@ const Reports = () => {
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
                   <Typography color="textSecondary" gutterBottom variant="h6">
-                    {t('totalProducts')}
+                    {t('todaysProductsSold')}
                   </Typography>
                   <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
                     {getTotalCustomers()}

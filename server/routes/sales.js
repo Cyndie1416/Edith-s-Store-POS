@@ -42,7 +42,7 @@ router.get('/', (req, res) => {
   }
   
   // Add payment method filter
-  if (paymentMethod) {
+  if (paymentMethod && paymentMethod !== 'all') {
     query += ` AND s.payment_method = ?`;
     params.push(paymentMethod);
   }
@@ -77,7 +77,7 @@ router.get('/', (req, res) => {
       countParams.push(customer);
     }
     
-    if (paymentMethod) {
+    if (paymentMethod && paymentMethod !== 'all') {
       countQuery += ` AND payment_method = ?`;
       countParams.push(paymentMethod);
     }
@@ -97,6 +97,33 @@ router.get('/', (req, res) => {
           pages: Math.ceil(result.total / limit)
         }
       });
+    });
+  });
+});
+
+// Get today's total products sold
+router.get('/products-sold', (req, res) => {
+  const db = getDatabase();
+  const { date } = req.query;
+  
+  const targetDate = date || new Date().toISOString().split('T')[0];
+  
+  const query = `
+    SELECT SUM(si.quantity) as total_products_sold
+    FROM sale_items si
+    JOIN sales s ON si.sale_id = s.id
+    WHERE DATE(s.created_at) = ? AND s.payment_status = 'completed'
+  `;
+  
+  db.get(query, [targetDate], (err, result) => {
+    if (err) {
+      console.error('Error fetching products sold:', err);
+      return res.status(500).json({ error: 'Failed to fetch products sold' });
+    }
+    
+    res.json({
+      date: targetDate,
+      total_products_sold: result.total_products_sold || 0
     });
   });
 });
@@ -513,9 +540,26 @@ router.get('/summary/daily', (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch daily summary' });
     }
     
-    res.json({
-      date: targetDate,
-      ...summary
+    // Calculate total cost from sale items
+    const costQuery = `
+      SELECT SUM(si.quantity * p.cost_price) as total_cost
+      FROM sale_items si
+      JOIN products p ON si.product_id = p.id
+      JOIN sales s ON si.sale_id = s.id
+      WHERE DATE(s.created_at) = ? AND s.payment_status = 'completed'
+    `;
+    
+    db.get(costQuery, [targetDate], (err, costResult) => {
+      if (err) {
+        console.error('Error calculating total cost:', err);
+        return res.status(500).json({ error: 'Failed to calculate total cost' });
+      }
+      
+      res.json({
+        date: targetDate,
+        ...summary,
+        total_cost: costResult.total_cost || 0
+      });
     });
   });
 });

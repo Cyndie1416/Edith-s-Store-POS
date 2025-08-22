@@ -53,22 +53,19 @@ const Sales = () => {
   const [success, setSuccess] = useState('');
 
   const [dateRange, setDateRange] = useState({
-    start: dayjs().subtract(30, 'day'),
+    start: dayjs('2025-08-01'),
     end: dayjs()
   });
   const [paymentFilter, setPaymentFilter] = useState('all');
 
   useEffect(() => {
     fetchSales();
-  }, [dateRange, paymentFilter]);
+  }, [paymentFilter, dateRange.start, dateRange.end]);
 
   const fetchSales = async () => {
     setLoading(true);
     try {
-      const startDate = dateRange.start.format('YYYY-MM-DD');
-      const endDate = dateRange.end.format('YYYY-MM-DD');
-      
-      const response = await axios.get(`/api/sales?start_date=${startDate}&end_date=${endDate}&payment_method=${paymentFilter}`);
+      const response = await axios.get(`/api/sales?startDate=${dateRange.start.format('YYYY-MM-DD')}&endDate=${dateRange.end.format('YYYY-MM-DD')}&paymentMethod=${paymentFilter}`);
       setSales(response.data.sales || []);
     } catch (error) {
       setError('Failed to load sales');
@@ -124,10 +121,10 @@ const Sales = () => {
             </div>
           `).join('')}
           <div class="total">
-            <h3>Total: ₱${sale.total_amount.toFixed(2)}</h3>
+            <h3>Total: ₱${sale.final_amount.toFixed(2)}</h3>
             <p>Payment Method: ${sale.payment_method}</p>
             <p>Amount Received: ₱${sale.amount_received.toFixed(2)}</p>
-            <p>Change: ₱{(sale.amount_received - sale.total_amount).toFixed(2)}</p>
+            <p>Change: ₱{(sale.amount_received - sale.final_amount).toFixed(2)}</p>
           </div>
         </body>
       </html>
@@ -142,7 +139,7 @@ const Sales = () => {
     sale.payment_method.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const totalSales = sales.reduce((sum, sale) => sum + sale.total_amount, 0);
+  const totalSales = sales.reduce((sum, sale) => sum + (sale.final_amount || 0), 0);
   const totalTransactions = sales.length;
   const averageSale = totalTransactions > 0 ? totalSales / totalTransactions : 0;
 
@@ -152,19 +149,19 @@ const Sales = () => {
       field: 'created_at', 
       headerName: 'Date & Time', 
       width: 180,
-      valueFormatter: (params) => {
-        if (!params || params.value === undefined || params.value === null) return 'N/A';
-        return new Date(params.value).toLocaleString();
+      valueFormatter: (value) => {
+        if (!value) return 'N/A';
+        return new Date(value).toLocaleString();
       }
     },
     { field: 'customer_name', headerName: 'Customer', width: 150 },
     { 
-      field: 'total_amount', 
+      field: 'final_amount', 
       headerName: 'Total Amount', 
       width: 130,
-      valueFormatter: (params) => {
-        if (!params || params.value === undefined || params.value === null) return '₱0.00';
-        return `₱${parseFloat(params.value).toFixed(2)}`;
+      valueFormatter: (value) => {
+        if (!value) return '₱0.00';
+        return `₱${parseFloat(value).toFixed(2)}`;
       }
     },
     { 
@@ -184,7 +181,7 @@ const Sales = () => {
       )
     },
     { 
-      field: 'status', 
+      field: 'payment_status', 
       headerName: 'Status', 
       width: 100,
       renderCell: (params) => (
@@ -240,7 +237,7 @@ const Sales = () => {
 
       {/* Summary Cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
@@ -252,7 +249,7 @@ const Sales = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
@@ -264,7 +261,7 @@ const Sales = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
@@ -276,16 +273,16 @@ const Sales = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
-                Today's Sales
+                Today's Profit
               </Typography>
               <Typography variant="h4" component="div">
                 ₱{sales.filter(sale => 
                   dayjs(sale.created_at).isSame(dayjs(), 'day')
-                ).reduce((sum, sale) => sum + sale.total_amount, 0).toFixed(2)}
+                ).reduce((sum, sale) => sum + sale.final_amount, 0).toFixed(2)}
               </Typography>
             </CardContent>
           </Card>
@@ -295,27 +292,27 @@ const Sales = () => {
       {/* Filters */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={3}>
+          <Grid xs={12} md={3}>
             <LocalizationProvider dateAdapter={AdapterDayjs}>
               <DatePicker
                 label="Start Date"
                 value={dateRange.start}
                 onChange={(newValue) => setDateRange({ ...dateRange, start: newValue })}
-                renderInput={(params) => <TextField {...params} fullWidth size="small" />}
+                slotProps={{ textField: { fullWidth: true, size: 'small' } }}
               />
             </LocalizationProvider>
           </Grid>
-          <Grid item xs={12} md={3}>
+          <Grid xs={12} md={3}>
             <LocalizationProvider dateAdapter={AdapterDayjs}>
               <DatePicker
                 label="End Date"
                 value={dateRange.end}
                 onChange={(newValue) => setDateRange({ ...dateRange, end: newValue })}
-                renderInput={(params) => <TextField {...params} fullWidth size="small" />}
+                slotProps={{ textField: { fullWidth: true, size: 'small' } }}
               />
             </LocalizationProvider>
           </Grid>
-          <Grid item xs={12} md={2}>
+          <Grid xs={12} md={2}>
             <FormControl fullWidth size="small">
               <InputLabel>Payment Method</InputLabel>
               <Select
@@ -330,7 +327,7 @@ const Sales = () => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} md={3}>
+          <Grid xs={12} md={3}>
             <TextField
               placeholder="Search sales..."
               value={searchTerm}
@@ -346,7 +343,7 @@ const Sales = () => {
               }}
             />
           </Grid>
-          <Grid item xs={12} md={1}>
+          <Grid xs={12} md={1}>
             <Button
               variant="outlined"
               startIcon={<Refresh />}
@@ -365,9 +362,14 @@ const Sales = () => {
         <DataGrid
           rows={Array.isArray(filteredSales) ? filteredSales : []}
           columns={salesColumns}
-          pageSize={10}
-          rowsPerPageOptions={[10, 25, 50]}
-          disableSelectionOnClick
+          initialState={{
+            pagination: {
+              paginationModel: { page: 0, pageSize: 10 },
+            },
+          }}
+          pageSizeOptions={[10, 25, 50]}
+          disableRowSelectionOnClick
+          getRowId={(row) => row.id}
           sx={{ border: 'none' }}
         />
       </Paper>
@@ -381,15 +383,15 @@ const Sales = () => {
           {selectedSale && (
             <Box>
               <Grid container spacing={2} sx={{ mb: 2 }}>
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <Typography variant="subtitle2">Date:</Typography>
                   <Typography>{new Date(selectedSale.created_at).toLocaleString()}</Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <Typography variant="subtitle2">Customer:</Typography>
                   <Typography>{selectedSale.customer_name || 'Walk-in Customer'}</Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <Typography variant="subtitle2">Payment Method:</Typography>
                   <Chip
                     label={selectedSale.payment_method}
@@ -400,7 +402,7 @@ const Sales = () => {
                     size="small"
                   />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <Typography variant="subtitle2">Status:</Typography>
                   <Chip
                     label={selectedSale.status}
@@ -441,14 +443,14 @@ const Sales = () => {
               <Divider sx={{ my: 2 }} />
 
               <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Typography variant="h6">Total Amount: ₱{selectedSale.total_amount.toFixed(2)}</Typography>
+                <Grid xs={6}>
+                  <Typography variant="h6">Total Amount: ₱{selectedSale.final_amount.toFixed(2)}</Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <Typography variant="h6">Amount Received: ₱{selectedSale.amount_received.toFixed(2)}</Typography>
                 </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="h6">Change: ₱{(selectedSale.amount_received - selectedSale.total_amount).toFixed(2)}</Typography>
+                <Grid xs={6}>
+                  <Typography variant="h6">Change: ₱{(selectedSale.amount_received - selectedSale.final_amount).toFixed(2)}</Typography>
                 </Grid>
               </Grid>
             </Box>

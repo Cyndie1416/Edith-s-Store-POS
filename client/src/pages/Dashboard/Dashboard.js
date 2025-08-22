@@ -50,8 +50,8 @@ const Dashboard = () => {
       setLoading(true);
       
       // Initialize with default values
-      let salesData = { total_sales: 0, total_revenue: 0 };
-      let inventoryData = { total_products: 0 };
+      let salesData = { total_sales: 0, total_revenue: 0, total_cost: 0 };
+      let todayProductsSold = 0;
       let recentSalesData = { sales: [] };
       let lowStockData = [];
       
@@ -60,16 +60,12 @@ const Dashboard = () => {
         const today = new Date().toISOString().split('T')[0];
         const salesResponse = await axios.get(`/api/sales/summary/daily?date=${today}`);
         salesData = salesResponse.data || salesData;
+        
+        // Fetch today's total products sold
+        const productsSoldResponse = await axios.get(`/api/sales/products-sold?date=${today}`);
+        todayProductsSold = productsSoldResponse.data?.total_products_sold || 0;
       } catch (error) {
         console.warn('Failed to fetch sales data:', error);
-      }
-      
-      try {
-        // Fetch inventory summary
-        const inventoryResponse = await axios.get('/api/inventory/summary');
-        inventoryData = inventoryResponse.data || inventoryData;
-      } catch (error) {
-        console.warn('Failed to fetch inventory data:', error);
       }
       
       try {
@@ -88,10 +84,16 @@ const Dashboard = () => {
         console.warn('Failed to fetch low stock data:', error);
       }
 
+      // Calculate profit: revenue - cost
+      const totalRevenue = parseFloat(salesData.total_revenue) || 0;
+      const totalCost = parseFloat(salesData.total_cost) || 0;
+      const totalProfit = totalRevenue - totalCost;
+
       setStats({
         totalSales: parseInt(salesData.total_sales) || 0,
-        totalRevenue: parseFloat(salesData.total_revenue) || 0,
-        totalProducts: parseInt(inventoryData.total_products) || 0,
+        totalRevenue: totalRevenue,
+        totalProducts: parseInt(todayProductsSold) || 0,
+        totalProfit: totalProfit,
         lowStockCount: lowStockData.length || 0
       });
 
@@ -106,16 +108,19 @@ const Dashboard = () => {
   };
 
   const StatCard = ({ title, value, icon, color = 'primary' }) => (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box display="flex" alignItems="center" justifyContent="space-between">
-          <Box>
-            <Typography color="textSecondary" gutterBottom variant="h6">
+    <Card sx={{ height: '100%', minHeight: 120 }}>
+      <CardContent sx={{ p: 2 }}>
+        <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ height: '100%' }}>
+          <Box sx={{ flex: 1 }}>
+            <Typography color="textSecondary" gutterBottom variant="h6" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
               {title}
             </Typography>
-            <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+            <Typography variant="h4" component="div" sx={{ 
+              fontWeight: 'bold',
+              fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' }
+            }}>
               {value !== undefined && value !== null
-                ? (typeof value === 'number' && title.includes('Revenue') 
+                ? (typeof value === 'number' && (title.includes('Revenue') || title.includes('Profit'))
                     ? `₱${value.toLocaleString()}`
                     : value.toLocaleString())
                 : '0'
@@ -126,14 +131,18 @@ const Dashboard = () => {
             sx={{
               backgroundColor: `${color}.light`,
               borderRadius: '50%',
-              p: 1,
+              p: { xs: 0.5, sm: 1 },
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              ml: 1
             }}
           >
             {React.cloneElement(icon, { 
-              sx: { fontSize: 40, color: `${color}.main` } 
+              sx: { 
+                fontSize: { xs: 30, sm: 35, md: 40 }, 
+                color: `${color}.main` 
+              } 
             })}
           </Box>
         </Box>
@@ -162,32 +171,34 @@ const Dashboard = () => {
       )}
 
       <Grid container spacing={3}>
-        {/* Stats Cards */}
-        <Grid item xs={12} sm={6} md={3}>
+        {/* Stats Cards - First Row */}
+        <Grid item xs={12} sm={6} md={6} lg={6}>
           <StatCard
-            title={t('todaysSales')}
-            value={stats.totalSales}
-            icon={<ShoppingCart />}
-            color="primary"
+            title={t('todaysProfit')}
+            value={stats.totalProfit}
+            icon={<TrendingUp />}
+            color="success"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={6} lg={6}>
           <StatCard
             title={t('todaysRevenue')}
             value={stats.totalRevenue}
             icon={<AttachMoney />}
-            color="success"
+            color="primary"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        
+        {/* Stats Cards - Second Row */}
+        <Grid item xs={12} sm={6} md={6} lg={6}>
           <StatCard
-            title={t('totalProducts')}
+            title={t('todaysProductsSold')}
             value={stats.totalProducts}
             icon={<Inventory />}
             color="info"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={6} lg={6}>
           <StatCard
             title={t('lowStockItems')}
             value={stats.lowStockCount}
@@ -196,17 +207,104 @@ const Dashboard = () => {
           />
         </Grid>
 
-        {/* Recent Sales */}
-        <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+        {/* Quick Actions - Full Width */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 3, backgroundColor: '#e3f2fd', mb: 3 }}>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
+              {t('quickActions')}
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6} md={3}>
+                <ListItem 
+                  button 
+                  onClick={() => navigate('/pos')}
+                  sx={{ 
+                    cursor: 'pointer', 
+                    py: 3,
+                    borderRadius: 2,
+                    backgroundColor: '#ffffff',
+                    border: '2px solid #2196f3',
+                    '&:hover': { backgroundColor: '#bbdefb' } 
+                  }}
+                >
+                  <ListItemIcon>
+                    <ShoppingCart color="primary" />
+                  </ListItemIcon>
+                  <ListItemText primary={t('newSale')} />
+                </ListItem>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <ListItem 
+                  button 
+                  onClick={() => navigate('/products')}
+                  sx={{ 
+                    cursor: 'pointer', 
+                    py: 3,
+                    borderRadius: 2,
+                    backgroundColor: '#ffffff',
+                    border: '2px solid #4caf50',
+                    '&:hover': { backgroundColor: '#c8e6c9' } 
+                  }}
+                >
+                  <ListItemIcon>
+                    <Inventory color="success" />
+                  </ListItemIcon>
+                  <ListItemText primary={t('addProduct')} />
+                </ListItem>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <ListItem 
+                  button 
+                  onClick={() => navigate('/customers')}
+                  sx={{ 
+                    cursor: 'pointer', 
+                    py: 3,
+                    borderRadius: 2,
+                    backgroundColor: '#ffffff',
+                    border: '2px solid #ff9800',
+                    '&:hover': { backgroundColor: '#ffcc80' } 
+                  }}
+                >
+                  <ListItemIcon>
+                    <People color="warning" />
+                  </ListItemIcon>
+                  <ListItemText primary={t('addCustomer')} />
+                </ListItem>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <ListItem 
+                  button 
+                  onClick={() => navigate('/reports')}
+                  sx={{ 
+                    cursor: 'pointer', 
+                    py: 3,
+                    borderRadius: 2,
+                    backgroundColor: '#ffffff',
+                    border: '2px solid #9c27b0',
+                    '&:hover': { backgroundColor: '#ce93d8' } 
+                  }}
+                >
+                  <ListItemIcon>
+                    <Assessment color="secondary" />
+                  </ListItemIcon>
+                  <ListItemText primary={t('viewReports')} />
+                </ListItem>
+              </Grid>
+            </Grid>
+          </Paper>
+        </Grid>
+
+        {/* Recent Sales - Smaller Section */}
+        <Grid item xs={12} sm={12} md={8} lg={8}>
+          <Paper sx={{ p: 3, height: '400px', overflow: 'auto', backgroundColor: '#fafafa' }}>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
               {t('recentSales')}
             </Typography>
             <List>
               {recentSales.length > 0 ? (
                 recentSales.map((sale, index) => (
                   <React.Fragment key={sale.id}>
-                    <ListItem>
+                    <ListItem sx={{ py: 1.5 }}>
                       <ListItemIcon>
                         <ShoppingCart color="primary" />
                       </ListItemIcon>
@@ -231,57 +329,6 @@ const Dashboard = () => {
                   />
                 </ListItem>
               )}
-            </List>
-          </Paper>
-        </Grid>
-
-        {/* Quick Actions */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
-              {t('quickActions')}
-            </Typography>
-            <List>
-              <ListItem 
-                button 
-                onClick={() => navigate('/pos')}
-                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'action.hover' } }}
-              >
-                <ListItemIcon>
-                  <ShoppingCart color="primary" />
-                </ListItemIcon>
-                <ListItemText primary={t('newSale')} />
-              </ListItem>
-              <ListItem 
-                button 
-                onClick={() => navigate('/products')}
-                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'action.hover' } }}
-              >
-                <ListItemIcon>
-                  <Inventory color="primary" />
-                </ListItemIcon>
-                <ListItemText primary={t('addProduct')} />
-              </ListItem>
-              <ListItem 
-                button 
-                onClick={() => navigate('/customers')}
-                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'action.hover' } }}
-              >
-                <ListItemIcon>
-                  <People color="primary" />
-                </ListItemIcon>
-                <ListItemText primary={t('addCustomer')} />
-              </ListItem>
-              <ListItem 
-                button 
-                onClick={() => navigate('/reports')}
-                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'action.hover' } }}
-              >
-                <ListItemIcon>
-                  <Assessment color="primary" />
-                </ListItemIcon>
-                <ListItemText primary={t('viewReports')} />
-              </ListItem>
             </List>
           </Paper>
         </Grid>
