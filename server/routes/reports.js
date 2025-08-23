@@ -3,6 +3,92 @@ const router = express.Router();
 const { getDatabase } = require('../models/database');
 const ExcelJS = require('exceljs');
 
+// Get sales report data
+router.get('/sales', (req, res) => {
+  const db = getDatabase();
+  const { startDate, endDate } = req.query;
+  
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: 'Start date and end date are required' });
+  }
+  
+  const query = `
+    SELECT 
+      s.*,
+      c.name as customer_name,
+      u.full_name as cashier_name,
+      COALESCE(SUM(si.quantity), 0) as total_products_sold,
+      COALESCE(SUM(si.quantity * p.cost_price), 0) as total_cost
+    FROM sales s
+    LEFT JOIN customers c ON s.customer_id = c.id
+    LEFT JOIN users u ON s.cashier_id = u.id
+    LEFT JOIN sale_items si ON s.id = si.sale_id
+    LEFT JOIN products p ON si.product_id = p.id
+    WHERE DATE(s.created_at) BETWEEN ? AND ? AND s.payment_status = 'completed'
+    GROUP BY s.id
+    ORDER BY s.created_at DESC
+  `;
+  
+  db.all(query, [startDate, endDate], (err, sales) => {
+    if (err) {
+      console.error('Error fetching sales report:', err);
+      return res.status(500).json({ error: 'Failed to fetch sales report' });
+    }
+    
+    res.json({ sales });
+  });
+});
+
+// Get inventory report data
+router.get('/inventory', (req, res) => {
+  const db = getDatabase();
+  
+  const query = `
+    SELECT 
+      p.*,
+      c.name as category_name
+    FROM products p
+    LEFT JOIN categories c ON p.category_id = c.id
+    WHERE p.is_active = 1
+    ORDER BY p.name
+  `;
+  
+  db.all(query, (err, inventory) => {
+    if (err) {
+      console.error('Error fetching inventory report:', err);
+      return res.status(500).json({ error: 'Failed to fetch inventory report' });
+    }
+    
+    res.json({ inventory });
+  });
+});
+
+// Get customers report data
+router.get('/customers', (req, res) => {
+  const db = getDatabase();
+  
+  const query = `
+    SELECT 
+      c.*,
+      COUNT(s.id) as total_purchases,
+      SUM(s.final_amount) as total_spent
+    FROM customers c
+    LEFT JOIN sales s ON c.id = s.customer_id AND s.payment_status = 'completed'
+    WHERE c.is_active = 1
+    GROUP BY c.id, c.name, c.phone, c.email, c.address, c.credit_limit, c.current_balance, c.is_active, c.created_at, c.updated_at
+    ORDER BY c.name
+  `;
+  
+  db.all(query, (err, customers) => {
+    if (err) {
+      console.error('Error fetching customers report:', err);
+      return res.status(500).json({ error: 'Failed to fetch customers report' });
+    }
+    
+    res.json({ customers });
+  });
+});
+
 // Get comprehensive business summary
 router.get('/business-summary', (req, res) => {
   const db = getDatabase();

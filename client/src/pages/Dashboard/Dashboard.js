@@ -207,95 +207,8 @@ const Dashboard = () => {
           />
         </Grid>
 
-        {/* Quick Actions - Full Width */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 3, backgroundColor: '#e3f2fd', mb: 3 }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
-              {t('quickActions')}
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={3}>
-                <ListItem 
-                  button 
-                  onClick={() => navigate('/pos')}
-                  sx={{ 
-                    cursor: 'pointer', 
-                    py: 3,
-                    borderRadius: 2,
-                    backgroundColor: '#ffffff',
-                    border: '2px solid #2196f3',
-                    '&:hover': { backgroundColor: '#bbdefb' } 
-                  }}
-                >
-                  <ListItemIcon>
-                    <ShoppingCart color="primary" />
-                  </ListItemIcon>
-                  <ListItemText primary={t('newSale')} />
-                </ListItem>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <ListItem 
-                  button 
-                  onClick={() => navigate('/products')}
-                  sx={{ 
-                    cursor: 'pointer', 
-                    py: 3,
-                    borderRadius: 2,
-                    backgroundColor: '#ffffff',
-                    border: '2px solid #4caf50',
-                    '&:hover': { backgroundColor: '#c8e6c9' } 
-                  }}
-                >
-                  <ListItemIcon>
-                    <Inventory color="success" />
-                  </ListItemIcon>
-                  <ListItemText primary={t('addProduct')} />
-                </ListItem>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <ListItem 
-                  button 
-                  onClick={() => navigate('/customers')}
-                  sx={{ 
-                    cursor: 'pointer', 
-                    py: 3,
-                    borderRadius: 2,
-                    backgroundColor: '#ffffff',
-                    border: '2px solid #ff9800',
-                    '&:hover': { backgroundColor: '#ffcc80' } 
-                  }}
-                >
-                  <ListItemIcon>
-                    <People color="warning" />
-                  </ListItemIcon>
-                  <ListItemText primary={t('addCustomer')} />
-                </ListItem>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <ListItem 
-                  button 
-                  onClick={() => navigate('/reports')}
-                  sx={{ 
-                    cursor: 'pointer', 
-                    py: 3,
-                    borderRadius: 2,
-                    backgroundColor: '#ffffff',
-                    border: '2px solid #9c27b0',
-                    '&:hover': { backgroundColor: '#ce93d8' } 
-                  }}
-                >
-                  <ListItemIcon>
-                    <Assessment color="secondary" />
-                  </ListItemIcon>
-                  <ListItemText primary={t('viewReports')} />
-                </ListItem>
-              </Grid>
-            </Grid>
-          </Paper>
-        </Grid>
-
-        {/* Recent Sales - Smaller Section */}
-        <Grid item xs={12} sm={12} md={8} lg={8}>
+        {/* Recent Sales and Quick Actions - Side by Side */}
+        <Grid item xs={12} sm={12} md={9} lg={9}>
           <Paper sx={{ p: 3, height: '400px', overflow: 'auto', backgroundColor: '#fafafa' }}>
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
               {t('recentSales')}
@@ -330,6 +243,85 @@ const Dashboard = () => {
                 </ListItem>
               )}
             </List>
+          </Paper>
+        </Grid>
+
+        {/* Quick Actions - Beside Recent Sales */}
+        <Grid item xs={12} sm={12} md={3} lg={3}>
+          <Paper sx={{ p: 3, height: '400px', backgroundColor: '#e3f2fd' }}>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
+              {t('quickActions')}
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <ListItem 
+                button 
+                onClick={() => navigate('/pos')}
+                sx={{ 
+                  cursor: 'pointer', 
+                  py: 2,
+                  borderRadius: 2,
+                  backgroundColor: '#ffffff',
+                  border: '2px solid #2196f3',
+                  '&:hover': { backgroundColor: '#bbdefb' } 
+                }}
+              >
+                <ListItemIcon>
+                  <ShoppingCart color="primary" />
+                </ListItemIcon>
+                <ListItemText primary={t('newSale')} />
+              </ListItem>
+              <ListItem 
+                button 
+                onClick={() => navigate('/products')}
+                sx={{ 
+                  cursor: 'pointer', 
+                  py: 2,
+                  borderRadius: 2,
+                  backgroundColor: '#ffffff',
+                  border: '2px solid #4caf50',
+                  '&:hover': { backgroundColor: '#c8e6c9' } 
+                }}
+              >
+                <ListItemIcon>
+                  <Inventory color="success" />
+                </ListItemIcon>
+                <ListItemText primary={t('addProduct')} />
+              </ListItem>
+              <ListItem 
+                button 
+                onClick={() => navigate('/customers')}
+                sx={{ 
+                  cursor: 'pointer', 
+                  py: 2,
+                  borderRadius: 2,
+                  backgroundColor: '#ffffff',
+                  border: '2px solid #ff9800',
+                  '&:hover': { backgroundColor: '#ffcc80' } 
+                }}
+              >
+                <ListItemIcon>
+                  <People color="warning" />
+                </ListItemIcon>
+                <ListItemText primary={t('addCustomer')} />
+              </ListItem>
+              <ListItem 
+                button 
+                onClick={() => navigate('/reports')}
+                sx={{ 
+                  cursor: 'pointer', 
+                  py: 2,
+                  borderRadius: 2,
+                  backgroundColor: '#ffffff',
+                  border: '2px solid #9c27b0',
+                  '&:hover': { backgroundColor: '#ce93d8' } 
+                }}
+              >
+                <ListItemIcon>
+                  <Assessment color="secondary" />
+                </ListItemIcon>
+                <ListItemText primary={t('viewReports')} />
+              </ListItem>
+            </Box>
           </Paper>
         </Grid>
       </Grid>

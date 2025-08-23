@@ -45,6 +45,9 @@ import {
   CalendarToday
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import dayjs from 'dayjs';
 import axios from 'axios';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { 
@@ -61,9 +64,9 @@ const Reports = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reportType, setReportType] = useState('sales');
-  const [dateRange, setDateRange] = useState('week');
-  const [startDate, setStartDate] = useState(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
-  const [endDate, setEndDate] = useState(new Date());
+  const [dateRange, setDateRange] = useState('today');
+  const [startDate, setStartDate] = useState(dayjs());
+  const [endDate, setEndDate] = useState(dayjs());
   
   const [salesData, setSalesData] = useState([]);
   const [inventoryData, setInventoryData] = useState([]);
@@ -74,17 +77,48 @@ const Reports = () => {
     fetchReportData();
   }, [reportType, dateRange, startDate, endDate]);
 
+  // Handle date range changes
+  useEffect(() => {
+    const today = dayjs();
+    
+    switch (dateRange) {
+      case 'today':
+        setStartDate(today);
+        setEndDate(today);
+        break;
+      case 'week':
+        const weekAgo = today.subtract(7, 'day');
+        setStartDate(weekAgo);
+        setEndDate(today);
+        break;
+      case 'month':
+        const monthAgo = today.subtract(30, 'day');
+        setStartDate(monthAgo);
+        setEndDate(today);
+        break;
+      case 'quarter':
+        const quarterAgo = today.subtract(90, 'day');
+        setStartDate(quarterAgo);
+        setEndDate(today);
+        break;
+      // For 'custom', keep the existing startDate and endDate
+    }
+  }, [dateRange]);
+
   const fetchReportData = async () => {
     try {
       setLoading(true);
       setError('');
 
-      const startDateStr = startDate.toISOString().split('T')[0];
-      const endDateStr = endDate.toISOString().split('T')[0];
+      const startDateStr = startDate.format('YYYY-MM-DD');
+      const endDateStr = endDate.format('YYYY-MM-DD');
+
+      console.log('Reports: Fetching data for date range:', startDateStr, 'to', endDateStr);
 
       switch (reportType) {
         case 'sales':
           const salesResponse = await axios.get(`/api/reports/sales?startDate=${startDateStr}&endDate=${endDateStr}`);
+          console.log('Reports: Sales data received:', salesResponse.data);
           setSalesData(salesResponse.data.sales || []);
           setChartData(processSalesData(salesResponse.data.sales || []));
           break;
@@ -188,7 +222,24 @@ const Reports = () => {
       const amount = parseFloat(sale?.final_amount) || 0;
       return total + amount;
     }, 0);
-    return isNaN(total) ? 0 : total;
+    const result = isNaN(total) ? 0 : total;
+    console.log('Reports: Total Revenue calculated:', result, 'from', salesData.length, 'sales');
+    return result;
+  };
+
+  const getTotalProfit = () => {
+    // Calculate profit: revenue - cost using actual database values
+    const totalRevenue = getTotalRevenue();
+    
+    // Calculate total cost from sale items using database values
+    const totalCost = salesData.reduce((total, sale) => {
+      const cost = parseFloat(sale?.total_cost) || 0;
+      return total + cost;
+    }, 0);
+    
+    const profit = totalRevenue - totalCost;
+    console.log('Reports: Total Profit calculated:', profit, 'Revenue:', totalRevenue, 'Cost:', totalCost);
+    return profit;
   };
 
   const getTotalSales = () => {
@@ -199,13 +250,23 @@ const Reports = () => {
     return inventoryData.filter(item => item.stock_quantity <= item.min_stock_level).length;
   };
 
+  const getTotalProductsSold = () => {
+    // Calculate total products sold from sales data using the database value
+    const total = salesData.reduce((total, sale) => {
+      const productsSold = parseFloat(sale?.total_products_sold) || 0;
+      return total + productsSold;
+    }, 0);
+    console.log('Reports: Total Products Sold calculated:', total, 'from', salesData.length, 'sales');
+    return total;
+  };
+
   const getTotalCustomers = () => {
     return customerData.length;
   };
 
   const renderSalesChart = () => (
     <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={chartData}>
+      <BarChart data={chartData || []}>
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="date" />
         <YAxis />
@@ -221,7 +282,7 @@ const Reports = () => {
     <ResponsiveContainer width="100%" height={300}>
       <PieChart>
         <Pie
-          data={chartData}
+          data={chartData || []}
           cx="50%"
           cy="50%"
           labelLine={false}
@@ -230,7 +291,7 @@ const Reports = () => {
           fill="#8884d8"
           dataKey="stock"
         >
-          {chartData.map((entry, index) => (
+          {(chartData || []).map((entry, index) => (
             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
           ))}
         </Pie>
@@ -241,7 +302,7 @@ const Reports = () => {
 
   const renderCustomerChart = () => (
     <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={chartData}>
+      <BarChart data={chartData || []}>
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="name" />
         <YAxis />
@@ -254,48 +315,89 @@ const Reports = () => {
   );
 
   const renderComprehensiveCharts = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12} md={6}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>{t('dailySales')}</Typography>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={chartData.sales}>
+    <Box sx={{ 
+      width: '100%', 
+      height: '400px', 
+      display: 'flex', 
+      gap: 2,
+      flexDirection: 'row'
+    }}>
+      <Card sx={{ 
+        flex: 1, 
+        height: '100%', 
+        display: 'flex', 
+        flexDirection: 'column',
+        minWidth: 0
+      }}>
+        <CardContent sx={{ 
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          p: 2,
+          width: '100%'
+        }}>
+          <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>{t('dailySales')}</Typography>
+          <Box sx={{ 
+            flex: 1, 
+            minHeight: 0, 
+            width: '100%',
+            overflow: 'hidden'
+          }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData.sales || []}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip />
-                <Line type="monotone" dataKey="revenue" stroke="#8884d8" />
+                <Line type="monotone" dataKey="revenue" stroke="#8884d8" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
+          </Box>
           </CardContent>
         </Card>
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>{t('inventoryReport')}</Typography>
-            <ResponsiveContainer width="100%" height={200}>
+      
+      <Card sx={{ 
+        flex: 1, 
+        height: '100%', 
+        display: 'flex', 
+        flexDirection: 'column',
+        minWidth: 0
+      }}>
+        <CardContent sx={{ 
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          p: 2,
+          width: '100%'
+        }}>
+          <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>{t('inventoryReport')}</Typography>
+          <Box sx={{ 
+            flex: 1, 
+            minHeight: 0, 
+            width: '100%',
+            overflow: 'hidden'
+          }}>
+            <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={chartData.inventory}
+                  data={chartData.inventory || []}
                   cx="50%"
                   cy="50%"
-                  outerRadius={60}
+                  outerRadius={80}
                   fill="#8884d8"
                   dataKey="stock"
                 >
-                  {chartData.inventory.map((entry, index) => (
+                  {(chartData.inventory || []).map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
+          </Box>
           </CardContent>
         </Card>
-      </Grid>
-    </Grid>
+    </Box>
   );
 
   if (loading) {
@@ -345,10 +447,11 @@ const Reports = () => {
                 onChange={(e) => setDateRange(e.target.value)}
                 label="Date Range"
               >
-                <MenuItem value="week">Last Week</MenuItem>
-                <MenuItem value="month">Last Month</MenuItem>
-                <MenuItem value="quarter">Last Quarter</MenuItem>
-                <MenuItem value="custom">Custom Range</MenuItem>
+                                 <MenuItem value="today">Today</MenuItem>
+                 <MenuItem value="week">Last Week</MenuItem>
+                 <MenuItem value="month">Last Month</MenuItem>
+                 <MenuItem value="quarter">Last Quarter</MenuItem>
+                 <MenuItem value="custom">Custom Range</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -356,20 +459,24 @@ const Reports = () => {
           {dateRange === 'custom' && (
             <>
               <Grid item xs={12} md={2}>
-                <DatePicker
-                  label="Start Date"
-                  value={startDate}
-                  onChange={setStartDate}
-                  renderInput={(params) => <TextField {...params} fullWidth />}
-                />
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                                 <DatePicker
+                   label="Start Date"
+                   value={startDate}
+                   onChange={setStartDate}
+                   slotProps={{ textField: { fullWidth: true, size: 'small' } }}
+                 />
+                </LocalizationProvider>
               </Grid>
               <Grid item xs={12} md={2}>
-                <DatePicker
-                  label="End Date"
-                  value={endDate}
-                  onChange={setEndDate}
-                  renderInput={(params) => <TextField {...params} fullWidth />}
-                />
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                                 <DatePicker
+                   label="End Date"
+                   value={endDate}
+                   onChange={setEndDate}
+                   slotProps={{ textField: { fullWidth: true, size: 'small' } }}
+                 />
+                </LocalizationProvider>
               </Grid>
             </>
           )}
@@ -398,7 +505,7 @@ const Reports = () => {
                     {t('todaysProfit')}
                   </Typography>
                   <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                    {getTotalSales()}
+                    ₱{(getTotalProfit() || 0).toLocaleString()}
                   </Typography>
                 </Box>
                 <ShoppingCart sx={{ fontSize: 40, color: 'primary.main' }} />
@@ -452,7 +559,7 @@ const Reports = () => {
                     {t('todaysProductsSold')}
                   </Typography>
                   <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                    {getTotalCustomers()}
+                    {getTotalProductsSold()}
                   </Typography>
                 </Box>
                 <People sx={{ fontSize: 40, color: 'info.main' }} />
@@ -463,18 +570,20 @@ const Reports = () => {
       </Grid>
 
       {/* Charts */}
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+      <Paper sx={{ p: 3, minHeight: '500px', width: '100%', margin: 0 }}>
+        <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', mb: 3 }}>
           {reportType === 'sales' && t('dailySales')}
           {reportType === 'inventory' && t('inventoryReport')}
           {reportType === 'customers' && t('creditReport')}
           {reportType === 'comprehensive' && 'Comprehensive Analysis'}
         </Typography>
         
+        <Box sx={{ width: '100%', margin: 0, padding: 0 }}>
         {reportType === 'sales' && renderSalesChart()}
         {reportType === 'inventory' && renderInventoryChart()}
         {reportType === 'customers' && renderCustomerChart()}
         {reportType === 'comprehensive' && renderComprehensiveCharts()}
+        </Box>
       </Paper>
     </Box>
   );
