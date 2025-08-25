@@ -54,7 +54,6 @@ import {
   Edit,
   Delete,
   Search,
-  CameraAlt,
   Warning,
   Inventory,
   QrCode,
@@ -71,12 +70,10 @@ import {
   LocalOffer,
   AttachMoney,
   ShoppingCart,
-  Assessment,
-  QrCodeScanner
+  Assessment
 } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import axios from 'axios';
-import BarcodeScanner from '../../components/BarcodeScanner/BarcodeScanner';
 
 const Products = () => {
   const [products, setProducts] = useState([]);
@@ -90,7 +87,7 @@ const Products = () => {
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [showScanner, setShowScanner] = useState(false);
+
   const [activeTab, setActiveTab] = useState(0);
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [filterCategory, setFilterCategory] = useState('');
@@ -428,31 +425,7 @@ const Products = () => {
     setOpenViewDialog(true);
   };
 
-  // Barcode Scanner Functions
-  const startScanner = () => {
-    setShowScanner(true);
-  };
 
-  const handleBarcodeResult = async (barcode) => {
-    try {
-      // Check if product with this barcode already exists
-      const existingProduct = products.find(p => p.barcode === barcode);
-      if (existingProduct) {
-        setError(`Product with barcode ${barcode} already exists: ${existingProduct.name}`);
-        setShowScanner(false);
-        return;
-      }
-
-      // Set the barcode in the form and open the product dialog
-      setFormData(prev => ({ ...prev, barcode: barcode }));
-      setEditingProduct(null);
-      setOpenDialog(true);
-      setSuccess(`Barcode ${barcode} scanned. Please fill in the product details.`);
-      setShowScanner(false);
-    } catch (error) {
-      setError('Error processing barcode');
-    }
-  };
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -882,11 +855,7 @@ const Products = () => {
               </IconButton>
             </Tooltip>
 
-            <Tooltip title="Scan Barcode">
-              <IconButton onClick={() => setShowScanner(true)} color="primary">
-                <CameraAlt />
-              </IconButton>
-            </Tooltip>
+
             
             <Button
               variant="contained"
@@ -1219,23 +1188,6 @@ const Products = () => {
                   label="Barcode"
                   value={formData.barcode}
                   onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <Tooltip title="Scan Barcode">
-                          <IconButton
-                            onClick={() => {
-                              setOpenDialog(false);
-                              startScanner();
-                            }}
-                            edge="end"
-                          >
-                            <CameraAlt />
-                          </IconButton>
-                        </Tooltip>
-                      </InputAdornment>
-                    ),
-                  }}
                 />
               </Box>
             </Grid>
@@ -1415,14 +1367,7 @@ const Products = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Barcode Scanner Component */}
-      <BarcodeScanner
-        open={showScanner}
-        onClose={() => setShowScanner(false)}
-        onScan={handleBarcodeResult}
-        title="Scan Product Barcode"
-        description="Point your camera at a barcode to scan. The scanner will automatically detect and pre-fill the barcode field for a new product."
-      />
+
 
       {/* Stock Adjustment Dialog */}
       <Dialog open={openStockDialog} onClose={() => setOpenStockDialog(false)} maxWidth="sm" fullWidth>

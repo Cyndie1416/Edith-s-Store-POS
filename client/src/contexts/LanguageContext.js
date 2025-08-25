@@ -53,8 +53,7 @@ const translations = {
     // POS
     pointOfSale: 'Point of Sale',
     shoppingCart: 'Shopping Cart',
-    searchProducts: 'Search products by name or barcode...',
-    scanBarcode: 'Scan Barcode',
+    searchProducts: 'Search products by name...',
     noItemsInCart: 'No items in cart',
     clearCart: 'Clear Cart',
     processPayment: 'Process Payment',
@@ -69,8 +68,7 @@ const translations = {
     saleCompleted: 'Sale completed successfully!',
     receipt: 'Receipt',
     printReceipt: 'Print Receipt',
-    barcodeScanner: 'Barcode Scanner',
-    failedToAccessCamera: 'Failed to access camera',
+
     
     // Products
     productName: 'Product Name',
@@ -174,8 +172,7 @@ const translations = {
     // POS
     pointOfSale: 'Point of Sale',
     shoppingCart: 'Shopping Cart',
-    searchProducts: 'Maghanap ng produkto sa pangalan o barcode...',
-    scanBarcode: 'I-scan ang Barcode',
+    searchProducts: 'Maghanap ng produkto sa pangalan...',
     noItemsInCart: 'Walang item sa cart',
     clearCart: 'I-clear ang Cart',
     processPayment: 'I-process ang Bayad',
@@ -190,8 +187,7 @@ const translations = {
     saleCompleted: 'Matagumpay na nakumpleto ang benta!',
     receipt: 'Resibo',
     printReceipt: 'I-print ang Resibo',
-    barcodeScanner: 'Barcode Scanner',
-    failedToAccessCamera: 'Hindi ma-access ang camera',
+
     
     // Products
     productName: 'Pangalan ng Produkto',

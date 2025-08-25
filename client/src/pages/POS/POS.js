@@ -27,24 +27,22 @@ import {
   Snackbar,
   Fab,
   Tooltip,
-  InputAdornment
+  InputAdornment,
+  Autocomplete
 } from '@mui/material';
 import {
   Add,
   Remove,
   Delete,
   Search,
-  CameraAlt,
   Receipt,
   Payment,
   Clear,
-  QrCodeScanner,
   AttachMoney,
   AccountBalance
 } from '@mui/icons-material';
 import axios from 'axios';
 import { useLanguage } from '../../contexts/LanguageContext';
-import BarcodeScanner from '../../components/BarcodeScanner/BarcodeScanner';
 
 const POS = () => {
   const { t } = useLanguage();
@@ -62,7 +60,6 @@ const POS = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [showScanner, setShowScanner] = useState(false);
 
 
   useEffect(() => {
@@ -92,9 +89,9 @@ const POS = () => {
       // For POS, we'll show both normal and low stock products, but mark low stock ones
       const availableProducts = [...normalStockProducts, ...lowStockProducts];
       
-      const filtered = availableProducts.filter(product =>
-        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.barcode?.includes(searchTerm)
+      // For name searches, use partial matching
+      const filtered = availableProducts.filter(product => 
+        product.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
       setFilteredProducts(filtered);
     } else {
@@ -337,42 +334,24 @@ const POS = () => {
     receiptWindow.print();
   };
 
-  const startScanner = () => {
-    setShowScanner(true);
-  };
 
-  const handleBarcodeResult = async (barcode) => {
-    try {
-      // Search for product with this barcode
-      const product = products.find(p => p.barcode === barcode);
-      if (product) {
-        // Check if product is in stock
-        if (product.stock_quantity <= 0) {
-          setError(`Product "${product.name}" is out of stock (Stock: ${product.stock_quantity})`);
-          setShowScanner(false);
-          return;
-        }
-        addToCart(product);
-        setSuccess(`Product found: ${product.name}`);
-        setShowScanner(false);
-      } else {
-        setError(`No product found with barcode: ${barcode}`);
-      }
-    } catch (error) {
-      setError('Error processing barcode');
-    }
-  };
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', mb: 3 }}>
-        {t('pointOfSale')}
-      </Typography>
-
-      <Grid container spacing={3}>
-        {/* Merged Section - Products and Shopping Cart */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2, height: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        {/* Full Width Point of Sale Container */}
+        <Paper sx={{ 
+          flex: 1, 
+          m: 2, 
+          mt: 0,
+          overflow: 'hidden', 
+          display: 'flex', 
+          flexDirection: 'column',
+          borderRadius: 0,
+          boxShadow: 'none',
+          border: '1px solid #e0e0e0',
+          p: 2
+        }}>
             {/* Header with Title and Stock Status */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
@@ -380,13 +359,13 @@ const POS = () => {
               </Typography>
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                 <Chip
-                  label={`${filteredProducts.filter(p => p.stock_quantity > (p.min_stock_level || 5)).length} Normal Stock`}
+                  label={`${products.filter(p => p.stock_quantity > (p.min_stock_level || 5)).length} Normal Stock`}
                   color="success"
                   size="small"
                   variant="outlined"
                 />
                 <Chip
-                  label={`${filteredProducts.filter(p => p.stock_quantity <= (p.min_stock_level || 5) && p.stock_quantity > 0).length} Low Stock`}
+                  label={`${products.filter(p => p.stock_quantity <= (p.min_stock_level || 5) && p.stock_quantity > 0).length} Low Stock`}
                   color="warning"
                   size="small"
                   variant="outlined"
@@ -402,26 +381,40 @@ const POS = () => {
 
             {/* Customer Selection */}
             <Box sx={{ mb: 2 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Customer (Optional)</InputLabel>
-                <Select
-                  value={selectedCustomer?.id || ''}
-                  onChange={(e) => {
-                    const customer = customers.find(c => c.id === e.target.value);
-                    setSelectedCustomer(customer);
-                  }}
+              <Autocomplete
+                options={customers}
+                getOptionLabel={(option) => 
+                  typeof option === 'string' ? option : `${option.name} - Balance: ₱${option.current_balance?.toFixed(2) || '0.00'}`
+                }
+                value={selectedCustomer}
+                onChange={(event, newValue) => {
+                  setSelectedCustomer(newValue);
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
                   label="Customer (Optional)"
-                >
-                  <MenuItem value="">
-                    <em>No customer selected</em>
-                  </MenuItem>
-                  {customers.map((customer) => (
-                    <MenuItem key={customer.id} value={customer.id}>
-                      {customer.name} - Balance: ₱{customer.current_balance?.toFixed(2) || '0.00'}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                    size="small"
+                    placeholder="Type to search customers..."
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <Box component="li" {...props}>
+                    <Box>
+                      <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                        {option.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Balance: ₱{option.current_balance?.toFixed(2) || '0.00'}
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                clearOnBlur={false}
+                clearOnEscape
+                freeSolo={false}
+              />
               {selectedCustomer && (
                 <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                   Current Balance: ₱{selectedCustomer.current_balance?.toFixed(2) || '0.00'}
@@ -430,126 +423,86 @@ const POS = () => {
             </Box>
 
             {/* Search Bar */}
-            <Box sx={{ mb: 2, display: 'flex', gap: 1 }}>
-              <TextField
-                fullWidth
-                placeholder={t('searchProducts') + ' or scan barcode'}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && searchTerm.trim()) {
-                    // Try to find product by barcode if it looks like a barcode
-                    const product = products.find(p => p.barcode === searchTerm.trim());
-                    if (product) {
-                      // Check if product is in stock
-                      if (product.stock_quantity <= 0) {
-                        setError(`Product "${product.name}" is out of stock (Stock: ${product.stock_quantity})`);
+            <Box sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                <TextField
+                  fullWidth
+                  placeholder={t('searchProducts')}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && searchTerm.trim()) {
+                      // For name searches, look for products by name
+                      const filtered = products.filter(p => 
+                        p.name.toLowerCase().includes(searchTerm.toLowerCase()) && p.stock_quantity > 0
+                      );
+                      if (filtered.length > 0) {
+                        addToCart(filtered[0]);
                         setSearchTerm('');
-                        return;
+                        setSuccess(`Product added: ${filtered[0].name}`);
+                      } else {
+                        setError(`No products found matching "${searchTerm}"`);
                       }
-                      addToCart(product);
-                      setSearchTerm('');
-                      setSuccess(`Product added: ${product.name}`);
                     }
-                  }
-                }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <Tooltip title="Quick barcode input">
-                        <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
-                          Enter barcode & press Enter
-                        </Typography>
-                      </Tooltip>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-              <Tooltip title={t('scanBarcode')}>
-                <IconButton onClick={startScanner} color="primary">
-                  <CameraAlt />
-                </IconButton>
-              </Tooltip>
+                  }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Box>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
+                💡 Tip: Type product name, then press Enter to add to cart.
+              </Typography>
             </Box>
 
-            {/* Main Content Area - Split into Products and Cart */}
-            <Box sx={{ display: 'flex', gap: 2, flex: 1, overflow: 'hidden' }}>
-              {/* Left Side - Products */}
-              <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: '#1976d2' }}>
-                  📦 {t('products')}
-                </Typography>
-                <Box sx={{ flex: 1, overflow: 'auto', border: '1px solid #e0e0e0', borderRadius: 1, p: 1 }}>
-                  {filteredProducts.length === 0 ? (
-                    <Box sx={{ 
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      height: '100%',
-                      textAlign: 'center',
-                      p: 3
-                    }}>
-                      <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
-                        🔍 Search for Products
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                        Type a product name or scan a barcode to see available items
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ mb: 2 }}>
-                        Products will appear here as you search
-                      </Typography>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center' }}>
-                        <Typography variant="caption" color="primary" sx={{ fontWeight: 'bold' }}>
-                          💡 Quick Tips:
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          • Type "sardines" to find canned goods
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          • Type "coke" to find beverages
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          • Scan barcode or enter barcode number
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          • Press Enter after typing barcode
-                        </Typography>
-                      </Box>
-                    </Box>
-                  ) : (
-                    <List>
+            {/* Main Content Area - Products and Cart */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              {/* Products List */}
+              {filteredProducts.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+                    📦 Available Products ({filteredProducts.length})
+                  </Typography>
+                  <Box sx={{ 
+                    maxHeight: '200px', 
+                    overflow: 'auto', 
+                    border: '1px solid #e0e0e0', 
+                    borderRadius: 1, 
+                    p: 1,
+                    backgroundColor: '#f8f9fa'
+                  }}>
+                    <List dense>
                       {filteredProducts.map((product) => {
-                        // Determine stock status
                         const isLowStock = product.stock_quantity <= (product.min_stock_level || 5) && product.stock_quantity > 0;
-                        const isOutOfStock = product.stock_quantity <= 0;
                         
                         return (
-                        <ListItem
-                          key={product.id}
-                          button
-                          onClick={() => addToCart(product)}
-                          sx={{
-                            border: '1px solid #e0e0e0',
-                            mb: 1,
-                            borderRadius: 1,
-                              '&:hover': { backgroundColor: '#f5f5f5' },
+                          <ListItem 
+                            key={product.id} 
+                            sx={{ 
+                              border: '1px solid #e0e0e0', 
+                              mb: 1, 
+                              borderRadius: 1,
+                              backgroundColor: 'white',
+                              cursor: 'pointer',
+                              '&:hover': {
+                                backgroundColor: '#f0f8ff',
+                                borderColor: '#1976d2'
+                              },
                               ...(isLowStock && {
                                 borderColor: '#ff9800',
-                                backgroundColor: '#fff3e0',
-                                '&:hover': { backgroundColor: '#ffe0b2' }
+                                backgroundColor: '#fff3e0'
                               })
-                          }}
-                        >
-                          <ListItemText
+                            }}
+                            onClick={() => addToCart(product)}
+                          >
+                            <ListItemText
                               primary={
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  <Typography variant="body1">
+                                  <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
                                     {product.name}
                                   </Typography>
                                   {isLowStock && (
@@ -562,26 +515,39 @@ const POS = () => {
                                   )}
                                 </Box>
                               }
-                              secondary={`₱${product.price.toFixed(2)} | Stock: ${product.stock_quantity}${isLowStock ? ` (Min: ${product.min_stock_level || 5})` : ''}`}
+                              secondary={
+                                <Box>
+                                  <Typography variant="body2" color="primary" sx={{ fontWeight: 'bold' }}>
+                                    ₱{product.price.toFixed(2)}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    Stock: {product.stock_quantity} | Barcode: {product.barcode || 'N/A'}
+                                  </Typography>
+                                </Box>
+                              }
                             />
-                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                          <Chip
-                            label={product.category_name}
-                            size="small"
-                            color="primary"
-                            variant="outlined"
-                          />
-                            </Box>
-                        </ListItem>
+                            <ListItemSecondaryAction>
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  addToCart(product);
+                                }}
+                                color="primary"
+                              >
+                                <Add />
+                              </IconButton>
+                            </ListItemSecondaryAction>
+                          </ListItem>
                         );
                       })}
                     </List>
-                  )}
+                  </Box>
                 </Box>
-              </Box>
+              )}
 
-              {/* Right Side - Shopping Cart */}
-              <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              {/* Shopping Cart */}
+              <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                 <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
                   🛒 {t('shoppingCart')}
                 </Typography>
@@ -589,9 +555,68 @@ const POS = () => {
                 {/* Cart Items */}
                 <Box sx={{ flex: 1, overflow: 'auto', border: '1px solid #e0e0e0', borderRadius: 1, p: 1, mb: 2 }}>
                   {cart.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 4 }}>
-                      {t('noItemsInCart')}
-                    </Typography>
+                    <List>
+                      {cart.map((item) => {
+                        // Find the current product to check stock status
+                        const currentProduct = products.find(p => p.id === item.id);
+                        const isLowStock = currentProduct && currentProduct.stock_quantity <= (currentProduct.min_stock_level || 5) && currentProduct.stock_quantity > 0;
+                        
+                        return (
+                          <ListItem 
+                            key={item.id} 
+                            sx={{ 
+                              border: '1px solid #e0e0e0', 
+                              mb: 1, 
+                              borderRadius: 1,
+                              ...(isLowStock && {
+                                borderColor: '#ff9800',
+                                backgroundColor: '#fff3e0'
+                              })
+                            }}
+                          >
+                          <ListItemText
+                              primary={
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Typography variant="body1">
+                                    {item.name}
+                      </Typography>
+                                  {isLowStock && (
+                                    <Chip
+                                      label="LOW STOCK"
+                                      size="small"
+                                      color="warning"
+                                      sx={{ fontSize: '0.7rem', height: '20px' }}
+                                    />
+                                  )}
+                      </Box>
+                              }
+                              secondary={`₱${item.price.toFixed(2)} x ${item.quantity} = ₱${(item.price * item.quantity).toFixed(2)} | Available: ${currentProduct?.stock_quantity || 0}`}
+                          />
+                          <ListItemSecondaryAction>
+                            <IconButton
+                              size="small"
+                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                            >
+                              <Remove />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                            >
+                              <Add />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => removeFromCart(item.id)}
+                              color="error"
+                            >
+                              <Delete />
+                            </IconButton>
+                          </ListItemSecondaryAction>
+                        </ListItem>
+                        );
+                      })}
+                    </List>
                   ) : (
                     <List>
                       {cart.map((item) => {
@@ -687,11 +712,10 @@ const POS = () => {
               </Box>
             </Box>
           </Paper>
-        </Grid>
-      </Grid>
+        </Box>
 
-      {/* Payment Dialog */}
-      <Dialog open={showPaymentDialog} onClose={() => setShowPaymentDialog(false)} maxWidth="sm" fullWidth>
+        {/* Payment Dialog */}
+        <Dialog open={showPaymentDialog} onClose={() => setShowPaymentDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Payment Details</DialogTitle>
         <DialogContent>
           <Typography variant="h6" gutterBottom>
@@ -816,10 +840,10 @@ const POS = () => {
             {loading ? 'Processing...' : 'Complete Sale'}
           </Button>
         </DialogActions>
-      </Dialog>
+        </Dialog>
 
-      {/* Receipt Dialog */}
-      <Dialog open={showReceiptDialog} onClose={() => setShowReceiptDialog(false)} maxWidth="sm" fullWidth>
+        {/* Receipt Dialog */}
+        <Dialog open={showReceiptDialog} onClose={() => setShowReceiptDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Receipt</DialogTitle>
         <DialogContent>
           <Typography variant="h6" gutterBottom>
@@ -886,30 +910,23 @@ const POS = () => {
             Print Receipt
           </Button>
         </DialogActions>
-      </Dialog>
+        </Dialog>
 
-      {/* Barcode Scanner Component */}
-      <BarcodeScanner
-        open={showScanner}
-        onClose={() => setShowScanner(false)}
-        onScan={handleBarcodeResult}
-        title="Scan Product Barcode"
-        description="Point your camera at a barcode to scan. The scanner will automatically detect and add the product to your cart."
-      />
 
-      {/* Notifications */}
-      <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError('')}>
+
+        {/* Notifications */}
+        <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError('')}>
         <Alert severity="error" onClose={() => setError('')}>
           {error}
         </Alert>
       </Snackbar>
       
-      <Snackbar open={!!success} autoHideDuration={6000} onClose={() => setSuccess('')}>
-        <Alert severity="success" onClose={() => setSuccess('')}>
-          {success}
-        </Alert>
-      </Snackbar>
-    </Box>
+        <Snackbar open={!!success} autoHideDuration={6000} onClose={() => setSuccess('')}>
+          <Alert severity="success" onClose={() => setSuccess('')}>
+            {success}
+          </Alert>
+        </Snackbar>
+      </Box>
   );
 };
 
