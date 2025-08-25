@@ -513,6 +513,56 @@ router.post('/:id/void', (req, res) => {
   });
 });
 
+// Get today's credit sales total
+router.get('/today/credit', (req, res) => {
+  const db = getDatabase();
+  const today = new Date().toISOString().split('T')[0];
+  
+  console.log('Fetching today\'s credit sales for date:', today);
+  
+  // First, let's check what payment methods exist in today's sales
+  const debugQuery = `
+    SELECT payment_method, payment_status, COUNT(*) as count, SUM(final_amount) as total
+    FROM sales 
+    WHERE DATE(created_at) = ? 
+    GROUP BY payment_method, payment_status
+  `;
+  
+  db.all(debugQuery, [today], (err, debugResult) => {
+    if (err) {
+      console.error('Error in debug query:', err);
+    } else {
+      console.log('Today\'s sales by payment method:', debugResult);
+    }
+    
+    // Now get the credit sales (including pending)
+    const query = `
+      SELECT 
+        COUNT(*) as credit_transactions,
+        SUM(final_amount) as total_credit_amount
+      FROM sales 
+      WHERE DATE(created_at) = ? 
+      AND payment_method = 'credit' 
+      AND payment_status IN ('completed', 'pending')
+    `;
+    
+    db.get(query, [today], (err, result) => {
+      if (err) {
+        console.error('Error fetching today\'s credit sales:', err);
+        return res.status(500).json({ error: 'Failed to fetch today\'s credit sales' });
+      }
+      
+      console.log('Credit sales result:', result);
+      
+      res.json({
+        date: today,
+        credit_transactions: result.credit_transactions || 0,
+        total_credit_amount: result.total_credit_amount || 0
+      });
+    });
+  });
+});
+
 // Get daily sales summary
 router.get('/summary/daily', (req, res) => {
   const db = getDatabase();

@@ -12,7 +12,7 @@ import Dashboard from './pages/Dashboard/Dashboard';
 import POS from './pages/POS/POS';
 import Products from './pages/Products/Products';
 import Customers from './pages/Customers/Customers';
-import Sales from './pages/Sales/Sales';
+// import Sales from './pages/Sales/Sales'; // Removed - functionality merged into Dashboard
 
 import Reports from './pages/Reports/Reports';
 import Settings from './pages/Settings/Settings';
@@ -41,7 +41,7 @@ function AppContent() {
                   <Route path="pos" element={<POS />} />
                   <Route path="products" element={<Products />} />
                   <Route path="customers" element={<Customers />} />
-                  <Route path="sales" element={<Sales />} />
+                  {/* <Route path="sales" element={<Sales />} /> // Removed - functionality merged into Dashboard */}
 
                   <Route path="reports" element={<Reports />} />
                   <Route path="settings" element={<Settings />} />

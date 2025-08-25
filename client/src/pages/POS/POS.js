@@ -73,31 +73,33 @@ const POS = () => {
 
 
   useEffect(() => {
-    // Filter products based on stock levels
-    const inStockProducts = products.filter(product => 
-      product.stock_quantity > 0
-    );
-    
-    // Separate products by stock status
-    const normalStockProducts = inStockProducts.filter(product => 
-      product.stock_quantity > (product.min_stock_level || 5)
-    );
-    
-    const lowStockProducts = inStockProducts.filter(product => 
-      product.stock_quantity <= (product.min_stock_level || 5) && product.stock_quantity > 0
-    );
-    
-    // For POS, we'll show both normal and low stock products, but mark low stock ones
-    const availableProducts = [...normalStockProducts, ...lowStockProducts];
-    
-    if (searchTerm) {
+    // Only show products when there's a search term
+    if (searchTerm.trim()) {
+      // Filter products based on stock levels
+      const inStockProducts = products.filter(product => 
+        product.stock_quantity > 0
+      );
+      
+      // Separate products by stock status
+      const normalStockProducts = inStockProducts.filter(product => 
+        product.stock_quantity > (product.min_stock_level || 5)
+      );
+      
+      const lowStockProducts = inStockProducts.filter(product => 
+        product.stock_quantity <= (product.min_stock_level || 5) && product.stock_quantity > 0
+      );
+      
+      // For POS, we'll show both normal and low stock products, but mark low stock ones
+      const availableProducts = [...normalStockProducts, ...lowStockProducts];
+      
       const filtered = availableProducts.filter(product =>
         product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.barcode?.includes(searchTerm)
       );
       setFilteredProducts(filtered);
     } else {
-      setFilteredProducts(availableProducts);
+      // Show empty list when no search term
+      setFilteredProducts([]);
     }
   }, [searchTerm, products]);
 
@@ -368,35 +370,36 @@ const POS = () => {
       </Typography>
 
       <Grid container spacing={3}>
-        {/* Left Side - Product Search and List */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 2, height: '70vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h6" gutterBottom>
-              {t('products')}
-            </Typography>
-            
-            {/* Stock Status Summary */}
-            <Box sx={{ mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <Chip
-                label={`${filteredProducts.filter(p => p.stock_quantity > (p.min_stock_level || 5)).length} Normal Stock`}
-                color="success"
-                size="small"
-                variant="outlined"
-              />
-              <Chip
-                label={`${filteredProducts.filter(p => p.stock_quantity <= (p.min_stock_level || 5) && p.stock_quantity > 0).length} Low Stock`}
-                color="warning"
-                size="small"
-                variant="outlined"
-              />
-              <Chip
-                label={`${products.filter(p => p.stock_quantity <= 0).length} Out of Stock`}
-                color="error"
-                size="small"
-                variant="outlined"
-              />
+        {/* Merged Section - Products and Shopping Cart */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 2, height: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            {/* Header with Title and Stock Status */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                {t('pointOfSale')}
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <Chip
+                  label={`${filteredProducts.filter(p => p.stock_quantity > (p.min_stock_level || 5)).length} Normal Stock`}
+                  color="success"
+                  size="small"
+                  variant="outlined"
+                />
+                <Chip
+                  label={`${filteredProducts.filter(p => p.stock_quantity <= (p.min_stock_level || 5) && p.stock_quantity > 0).length} Low Stock`}
+                  color="warning"
+                  size="small"
+                  variant="outlined"
+                />
+                <Chip
+                  label={`${products.filter(p => p.stock_quantity <= 0).length} Out of Stock`}
+                  color="error"
+                  size="small"
+                  variant="outlined"
+                />
+              </Box>
             </Box>
-            
+
             {/* Customer Selection */}
             <Box sx={{ mb: 2 }}>
               <FormControl fullWidth size="small">
@@ -425,7 +428,7 @@ const POS = () => {
                 </Typography>
               )}
             </Box>
-            
+
             {/* Search Bar */}
             <Box sx={{ mb: 2, display: 'flex', gap: 1 }}>
               <TextField
@@ -474,188 +477,214 @@ const POS = () => {
               </Tooltip>
             </Box>
 
-            {/* Product List */}
-            <Box sx={{ flex: 1, overflow: 'auto' }}>
-              <List>
-                {filteredProducts.map((product) => {
-                  // Determine stock status
-                  const isLowStock = product.stock_quantity <= (product.min_stock_level || 5) && product.stock_quantity > 0;
-                  const isOutOfStock = product.stock_quantity <= 0;
-                  
-                  return (
-                  <ListItem
-                    key={product.id}
-                    button
-                    onClick={() => addToCart(product)}
-                    sx={{
-                      border: '1px solid #e0e0e0',
-                      mb: 1,
-                      borderRadius: 1,
-                        '&:hover': { backgroundColor: '#f5f5f5' },
-                        ...(isLowStock && {
-                          borderColor: '#ff9800',
-                          backgroundColor: '#fff3e0',
-                          '&:hover': { backgroundColor: '#ffe0b2' }
-                        })
-                    }}
-                  >
-                    <ListItemText
-                        primary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="body1">
-                              {product.name}
-                            </Typography>
-                            {isLowStock && (
-                              <Chip
-                                label="LOW STOCK"
-                                size="small"
-                                color="warning"
-                                sx={{ fontSize: '0.7rem', height: '20px' }}
-                              />
-                            )}
-                          </Box>
-                        }
-                        secondary={`₱${product.price.toFixed(2)} | Stock: ${product.stock_quantity}${isLowStock ? ` (Min: ${product.min_stock_level || 5})` : ''}`}
-                      />
-                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    <Chip
-                      label={product.category_name}
-                      size="small"
-                      color="primary"
-                      variant="outlined"
-                    />
-                      </Box>
-                  </ListItem>
-                  );
-                })}
-              </List>
-            </Box>
-          </Paper>
-        </Grid>
-
-        {/* Right Side - Cart and Payment */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 2, height: '70vh', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h6" gutterBottom>
-              {t('shoppingCart')}
-            </Typography>
-
-            {/* Customer Selection */}
-            <FormControl fullWidth sx={{ mb: 2 }}>
-              <InputLabel>{t('customers')} ({t('cancel')})</InputLabel>
-              <Select
-                value={selectedCustomer?.id || ''}
-                onChange={(e) => {
-                  const customer = customers.find(c => c.id === e.target.value);
-                  setSelectedCustomer(customer);
-                }}
-                label={`${t('customers')} (${t('cancel')})`}
-              >
-                <MenuItem value="">{t('noCustomer')}</MenuItem>
-                {customers.map((customer) => (
-                  <MenuItem key={customer.id} value={customer.id}>
-                    {customer.name} {customer.credit_balance > 0 && `(Credit: ₱${customer.credit_balance})`}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            {/* Cart Items */}
-            <Box sx={{ flex: 1, overflow: 'auto', mb: 2 }}>
-              {cart.length === 0 ? (
-                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 4 }}>
-                  {t('noItemsInCart')}
+            {/* Main Content Area - Split into Products and Cart */}
+            <Box sx={{ display: 'flex', gap: 2, flex: 1, overflow: 'hidden' }}>
+              {/* Left Side - Products */}
+              <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+                  📦 {t('products')}
                 </Typography>
-              ) : (
-                <List>
-                  {cart.map((item) => {
-                    // Find the current product to check stock status
-                    const currentProduct = products.find(p => p.id === item.id);
-                    const isLowStock = currentProduct && currentProduct.stock_quantity <= (currentProduct.min_stock_level || 5) && currentProduct.stock_quantity > 0;
-                    
-                    return (
-                      <ListItem 
-                        key={item.id} 
-                        sx={{ 
-                          border: '1px solid #e0e0e0', 
-                          mb: 1, 
-                          borderRadius: 1,
-                          ...(isLowStock && {
-                            borderColor: '#ff9800',
-                            backgroundColor: '#fff3e0'
-                          })
-                        }}
-                      >
-                      <ListItemText
-                          primary={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="body1">
-                                {item.name}
-                              </Typography>
-                              {isLowStock && (
-                                <Chip
-                                  label="LOW STOCK"
-                                  size="small"
-                                  color="warning"
-                                  sx={{ fontSize: '0.7rem', height: '20px' }}
-                                />
-                              )}
+                <Box sx={{ flex: 1, overflow: 'auto', border: '1px solid #e0e0e0', borderRadius: 1, p: 1 }}>
+                  {filteredProducts.length === 0 ? (
+                    <Box sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      height: '100%',
+                      textAlign: 'center',
+                      p: 3
+                    }}>
+                      <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
+                        🔍 Search for Products
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        Type a product name or scan a barcode to see available items
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 2 }}>
+                        Products will appear here as you search
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center' }}>
+                        <Typography variant="caption" color="primary" sx={{ fontWeight: 'bold' }}>
+                          💡 Quick Tips:
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          • Type "sardines" to find canned goods
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          • Type "coke" to find beverages
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          • Scan barcode or enter barcode number
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          • Press Enter after typing barcode
+                        </Typography>
+                      </Box>
+                    </Box>
+                  ) : (
+                    <List>
+                      {filteredProducts.map((product) => {
+                        // Determine stock status
+                        const isLowStock = product.stock_quantity <= (product.min_stock_level || 5) && product.stock_quantity > 0;
+                        const isOutOfStock = product.stock_quantity <= 0;
+                        
+                        return (
+                        <ListItem
+                          key={product.id}
+                          button
+                          onClick={() => addToCart(product)}
+                          sx={{
+                            border: '1px solid #e0e0e0',
+                            mb: 1,
+                            borderRadius: 1,
+                              '&:hover': { backgroundColor: '#f5f5f5' },
+                              ...(isLowStock && {
+                                borderColor: '#ff9800',
+                                backgroundColor: '#fff3e0',
+                                '&:hover': { backgroundColor: '#ffe0b2' }
+                              })
+                          }}
+                        >
+                          <ListItemText
+                              primary={
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Typography variant="body1">
+                                    {product.name}
+                                  </Typography>
+                                  {isLowStock && (
+                                    <Chip
+                                      label="LOW STOCK"
+                                      size="small"
+                                      color="warning"
+                                      sx={{ fontSize: '0.7rem', height: '20px' }}
+                                    />
+                                  )}
+                                </Box>
+                              }
+                              secondary={`₱${product.price.toFixed(2)} | Stock: ${product.stock_quantity}${isLowStock ? ` (Min: ${product.min_stock_level || 5})` : ''}`}
+                            />
+                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                          <Chip
+                            label={product.category_name}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                          />
                             </Box>
-                          }
-                          secondary={`₱${item.price.toFixed(2)} x ${item.quantity} = ₱${(item.price * item.quantity).toFixed(2)} | Available: ${currentProduct?.stock_quantity || 0}`}
-                      />
-                      <ListItemSecondaryAction>
-                        <IconButton
-                          size="small"
-                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        >
-                          <Remove />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        >
-                          <Add />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          onClick={() => removeFromCart(item.id)}
-                          color="error"
-                        >
-                          <Delete />
-                        </IconButton>
-                      </ListItemSecondaryAction>
-                    </ListItem>
-                    );
-                  })}
-                </List>
-              )}
-            </Box>
+                        </ListItem>
+                        );
+                      })}
+                    </List>
+                  )}
+                </Box>
+              </Box>
 
-            {/* Total and Actions */}
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="h5" gutterBottom>
-              Total: ₱{getTotal().toFixed(2)}
-            </Typography>
-            
-            <Box sx={{ display: 'flex', gap: 1 }}>
-                              <Button
-                  variant="outlined"
-                  onClick={clearCart}
-                  startIcon={<Clear />}
-                  fullWidth
-                >
-                  {t('clearCart')}
-                </Button>
-                <Button
-                  variant="contained"
-                  onClick={handlePayment}
-                  startIcon={<Payment />}
-                  fullWidth
-                  disabled={cart.length === 0}
-                >
-                  {t('processPayment')}
-                </Button>
+              {/* Right Side - Shopping Cart */}
+              <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
+                  🛒 {t('shoppingCart')}
+                </Typography>
+                
+                {/* Cart Items */}
+                <Box sx={{ flex: 1, overflow: 'auto', border: '1px solid #e0e0e0', borderRadius: 1, p: 1, mb: 2 }}>
+                  {cart.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 4 }}>
+                      {t('noItemsInCart')}
+                    </Typography>
+                  ) : (
+                    <List>
+                      {cart.map((item) => {
+                        // Find the current product to check stock status
+                        const currentProduct = products.find(p => p.id === item.id);
+                        const isLowStock = currentProduct && currentProduct.stock_quantity <= (currentProduct.min_stock_level || 5) && currentProduct.stock_quantity > 0;
+                        
+                        return (
+                          <ListItem 
+                            key={item.id} 
+                            sx={{ 
+                              border: '1px solid #e0e0e0', 
+                              mb: 1, 
+                              borderRadius: 1,
+                              ...(isLowStock && {
+                                borderColor: '#ff9800',
+                                backgroundColor: '#fff3e0'
+                              })
+                            }}
+                          >
+                          <ListItemText
+                              primary={
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Typography variant="body1">
+                                    {item.name}
+                                  </Typography>
+                                  {isLowStock && (
+                                    <Chip
+                                      label="LOW STOCK"
+                                      size="small"
+                                      color="warning"
+                                      sx={{ fontSize: '0.7rem', height: '20px' }}
+                                    />
+                                  )}
+                                </Box>
+                              }
+                              secondary={`₱${item.price.toFixed(2)} x ${item.quantity} = ₱${(item.price * item.quantity).toFixed(2)} | Available: ${currentProduct?.stock_quantity || 0}`}
+                          />
+                          <ListItemSecondaryAction>
+                            <IconButton
+                              size="small"
+                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                            >
+                              <Remove />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                            >
+                              <Add />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => removeFromCart(item.id)}
+                              color="error"
+                            >
+                              <Delete />
+                            </IconButton>
+                          </ListItemSecondaryAction>
+                        </ListItem>
+                        );
+                      })}
+                    </List>
+                  )}
+                </Box>
+
+                {/* Total and Actions */}
+                <Box sx={{ border: '1px solid #e0e0e0', borderRadius: 1, p: 2, backgroundColor: '#f8f9fa' }}>
+                  <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', color: '#2e7d32', textAlign: 'center', mb: 2 }}>
+                    Total: ₱{getTotal().toFixed(2)}
+                  </Typography>
+                  
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button
+                      variant="outlined"
+                      onClick={clearCart}
+                      startIcon={<Clear />}
+                      fullWidth
+                    >
+                      {t('clearCart')}
+                    </Button>
+                    <Button
+                      variant="contained"
+                      onClick={handlePayment}
+                      startIcon={<Payment />}
+                      fullWidth
+                      disabled={cart.length === 0}
+                    >
+                      {t('processPayment')}
+                    </Button>
+                  </Box>
+                </Box>
+              </Box>
             </Box>
           </Paper>
         </Grid>

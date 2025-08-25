@@ -33,8 +33,8 @@ import {
   PointOfSale as POSIcon,
   Inventory as InventoryIcon,
   People as PeopleIcon,
-  ShoppingCart as SalesIcon,
   Assessment as ReportsIcon,
+  Assessment,
   Settings as SettingsIcon,
   Notifications,
   Logout,
@@ -75,7 +75,6 @@ const Layout = () => {
     { text: t('posSales'), icon: <POSIcon />, path: '/pos' },
     { text: 'Products & Inventory', icon: <InventoryIcon />, path: '/products' },
     { text: t('customers'), icon: <PeopleIcon />, path: '/customers' },
-    { text: t('salesHistory'), icon: <SalesIcon />, path: '/sales' },
     { text: t('reports'), icon: <ReportsIcon />, path: '/reports' },
     { text: t('settings'), icon: <SettingsIcon />, path: '/settings' },
   ];
@@ -122,7 +121,7 @@ const Layout = () => {
   const getNotificationIcon = (type) => {
     switch (type) {
       case 'lowStock': return <InventoryIcon fontSize="small" />;
-      case 'sales': return <SalesIcon fontSize="small" />;
+      case 'sales': return <Assessment fontSize="small" />;
       case 'system': return <SettingsIcon fontSize="small" />;
       default: return <Notifications fontSize="small" />;
     }
@@ -140,7 +139,7 @@ const Layout = () => {
         {menuItems.map((item) => (
           <ListItem key={item.text} disablePadding>
             <ListItemButton
-              selected={location.pathname === item.path}
+              selected={location.pathname === item.path || (item.path.includes('?tab=sales') && location.pathname === '/dashboard')}
               onClick={() => {
                 navigate(item.path);
                 setMobileOpen(false);

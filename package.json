@@ -9,14 +9,7 @@
     "client": "cd client && npm start",
     "build": "cd client && npm run build",
     "install-all": "npm install && cd client && npm install",
-    "start": "node server/index.js",
-    "network": "node start-network.js",
-    "network-simple": "node start-network-simple.js",
-    "https-network": "node start-https-network.js",
-    "camera": "node start-camera.js",
-    "https": "node start-https.js",
-    "https-server": "node server/https-server.js",
-    "setup-https": "node setup-https.js"
+    "start": "node server/index.js"
   },
   "keywords": [
     "pos",
